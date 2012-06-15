@@ -1,7 +1,6 @@
 from multiprocessing import *
-from yaml import load
 import os, sys, shutil, time, datetime, re, filecmp, subprocess, logging #, hashlib
-from optparse import OptionParser
+#from optparse import OptionParser
 
 """
 A script to traverse a file structure and return the sizes of all the sequences, the number
@@ -10,9 +9,6 @@ number of files found is written to a file
 
 Author: Andrew Stevens
 """
-
-formats_file = 'image_formats.yaml'
-
 ##This method returns the date in a certain format
 def getDate():
   return datetime.datetime.now().strftime("%Y-%m-%d") 
@@ -29,21 +25,15 @@ def get_full_path(dir_name, file_name):
   joined_file_name = os.path.join(dir_name, file_name)
   return joined_file_name
 
-def get_image_formats():
-  f = open(formats_file, 'r')
-  image_f = load(f)
-  f.close()
-  return image_f
-
 def list_directories(dir_a, save_path="", prefix=""):
   path = ""
-  ranges = {}
-  ranges_list = []
   f_frame = ""  #first frame in sequence
   l_frame = ""  #last frame in sequence
   p_frame = ""  #the previous frame to the one that is being checked
   total_size = 0L  #the total size of the directory
   total_count = 0L ##the total number of files found
+  directories = []
+  ranges = {}
   output = []
   system = sys.platform
   #t = time.localtime(time.time())
@@ -76,7 +66,7 @@ def list_directories(dir_a, save_path="", prefix=""):
   #files_check = ["data", "bak"]        ## files to not count
   #dir_check = ["128x96"]          ##directories to not include
   #other_file_check = ["tiff", "dpx", "cin", "ari", "exr", "tif", "jpg", "tga"]    ##image extensions to check for
-  #image_format = get_image_formats()
+  file_check = ["mov", "mpeg", "avi"]
   file_name = "directory_log_" + getDate()
   search_sp = re.compile(r"\s[0-9]+$")
   search_un = re.compile(r"_[0-9]+$")
@@ -88,7 +78,6 @@ def list_directories(dir_a, save_path="", prefix=""):
 
   #regular expression to match the serial number from the output of profiler
   sys_serial = re.compile("(.*?)([\(]{1}[\w]+[\)]{1}):[\s]{1}([\w]+)")
-  #frame_num = re.compile("(.*?)([\d]+).([\w]+)")
   div_meg = 1024
   div_gig = 1024.0*1024
   div_tb = 1024.0*1024*1024
@@ -106,257 +95,389 @@ def list_directories(dir_a, save_path="", prefix=""):
   #full_tree = os.walk(dir_a)  #full tree of directories to check
   for root, dirs, files in os.walk(dir_a):  #since os.walk returns a tuple, we traverse the tuple and grab the 3 attributes of each directory
     working_dir = root
-    path = root    #working directory
-    #if not files == [] and not root.split("/")[-1] in dir_check and re.search(search_mac_spot, root)==None and re.search(search_mac_apple_dbl, root)==None:
-    if not files == []:
-      dir_count = 0L
-      dir_size = 0L
-      (ranges_list, dir_count, dir_size) = get_listings(root, files, system)
-      ranges[path] = ranges_list
-      total_size += dir_size
-      total_count += dir_count
-  print ranges
-  ##now we start writing to the file
-  #f = open(file, "a");
+    if not files == [] and not root.split("/")[-1] in dir_check and re.search(search_mac_spot, root)==None and re.search(search_mac_apple_dbl, root)==None:
+      dir_size = 0L    #the total size of the current directory
+      range_size = 0L    #the total size of the current frame range
+      path = root    #working directory
+      directories.append(path)
+      #path = path + "@"*(len(files[0].split(".")[0])) + ".dpx"
+      ranges[path] = []
+      #removed_mac_files = []
+      #print files
+      count = 0
+      new_files = sorted(files)
+      
+      ##here we want to get rid of all the ._ files in the list
+      #for test_file in new_files:
+        ##checking to see if the file we have is not a mac rubbish file and then append it to the new list of files
+        #if re.search(search_mac, test_file)==None:
+          #print test_file
+          #removed_mac_files.append(test_file)
+      #print removed_mac_files
 
+      #for f in removed_mac_files:
+      for f in new_files:
+        #if not f.split(".")[-1] in files_check and re.search(search_mac, f)==None and re.search(search_mac2, f)==None:
+        #print f
+        if not f.split(".")[-1] in files_check and re.search(search_mac, f)==None:
+          if f.split(".")[-1] not in other_file_check: ##checking if we have anything else and getting their sizes
+            if removed_mac_files.index(f) == len(removed_mac_files) - 1:
+              #range_size += float(subprocess.Popen(["du","-B1",path + "/" + f], stdout=subprocess.PIPE).communicate()[0].strip().split()[0])/1024L
+              if system == "win32":
+                range_size += os.stat(path + "\\" + f).st_size/1024L
+              else:
+                range_size += os.stat(path + "/" + f).st_size/1024L
+              dir_size += range_size
+              count += 1
+              ranges[path].append([f, count, range_size])
+              range_size = 0L
+              total_count += count
+              count = 0
+            else:
+              #range_size += float(subprocess.Popen(["du","-B1",path + "/" + f], stdout=subprocess.PIPE).communicate()[0].strip().split()[0])/1024L
+              if system == "win32":
+                range_size += os.stat(path + "\\" + f).st_size/1024L
+              else:
+                range_size += os.stat(path + "/" + f).st_size/1024L
+              dir_size += range_size
+              count += 1
+              ranges[path].append([f, count, range_size])
+              range_size = 0L
+              total_count += count
+              count = 0
+          elif len(f.split(".")) > 2:  #case where the filename is split up by '.' and has a name, frame number and extension
+            if count == 0:
+              #print "count is 0"
+              f_frame = ".".join(f.split(".")[:-1])  #grab first frame of the sequence
+              p_frame = f.split(".")[-2]  #grab first frame of the sequence as its the previous frame when count is 0
+              p_frame_suf = ".".join(f.split(".")[0].split(".")[:-1])
+              #range_size += float(subprocess.Popen(["du","-sk",path + "/" + f], stdout=subprocess.PIPE).communicate()[0].strip().split()[0])
+              if system == "win32":
+                range_size += os.stat(path + "\\" + f).st_size/1024L
+              else:
+                range_size += os.stat(path + "/" + f).st_size/1024L
+              count +=1
+            elif int(f.split(".")[-2]) - int(p_frame) > 1:
+              #range_size += float(subprocess.Popen(["du","-B1",path + "/" + f.split(".")[0] + "." + p_frame + "." + f.split(".")[-1]], stdout=subprocess.PIPE).communicate()[0].strip().split()[0])/1024L
+              if system == "win32":
+                range_size += os.stat(path + "\\" + f.split(".")[0] + "." + p_frame + "." + f.split(".")[-1]).st_size/1024L
+              else:
+                range_size += os.stat(path + "/" + f.split(".")[0] + "." + p_frame + "." + f.split(".")[-1]).st_size/1024L
+              count += 1
+              ranges[path].append([f_frame + "-" + p_frame.split(".")[-1] + "." + f.split(".")[-1], count, range_size])
+              dir_size += range_size
+              range_size = 0L
+              #l_frame = f.split(".")[0]
+              f_frame = ".".join(f.split(".")[:-1])  #grab first frame of the sequence
+              p_frame = f.split(".")[-2]
+              range_size = 0L
+              #range_size += float(subprocess.Popen(["du","-sk",path + "/" + f], stdout=subprocess.PIPE).communicate()[0].strip().split()[0])
+              if system == "win32":
+                range_size += os.stat(path + "\\" + f).st_size/1024L
+              else:
+                range_size += os.stat(path + "/" + f).st_size/1024L
+              total_count += count
+              count = 1
+            elif removed_mac_files.index(f) == len(removed_mac_files) - 1:
+              #range_size += float(subprocess.Popen(["du","-B1",path + "/" + f], stdout=subprocess.PIPE).communicate()[0].strip().split()[0])/1024L
+              if system == "win32":
+                range_size += os.stat(path + "\\" + f).st_size/1024L
+              else:
+                range_size += os.stat(path + "/" + f).st_size/1024L
+              dir_size += range_size
+              count += 1
+              total_count += count
+              ranges[path].append([f_frame + "-" + f.split(".")[-2] + "." + f.split(".")[-1], count, range_size])
+              range_size = 0L
+              count = 0
+            else:
+              p_frame = f.split(".")[-2]
+              #range_size += float(subprocess.Popen(["du","-B1",path + "/" + f], stdout=subprocess.PIPE).communicate()[0].strip().split()[0])/1024L
+              if system == "win32":
+                range_size += os.stat(path + "\\" + f).st_size/1024L
+              else:
+                range_size += os.stat(path + "/" + f).st_size/1024L
+              count += 1
+          #elif " " in f.split(".")[0] and "_" in f.split(".")[0]:  #case where the filename has spaces and underscores in the name
+          elif not re.search(search_un, f.split(".")[0]) == None and len(f.split("."))==2:    #case where there is an underscore before the frame number
+            #print "when looking at the current ari files, we get here"
+            #print root, f
+            if count == 0:
+              #print "count is 0"
+              f_frame = f.split(".")[0]  #grab first frame of the sequence
+              p_frame = f.split(".")[0].split("_")[-1]  #grab first frame of the sequence as its the previous frame when count is 0
+  #            print f.split(".")[0].split("_")[:-1]
+              p_frame_suf = "_".join((f.split(".")[0].split("_"))[:-1])
+  #            print p_frame_suf
+              #range_size += float(subprocess.Popen(["du","-B1",path + "/" + f], stdout=subprocess.PIPE).communicate()[0].strip().split()[0])/1024L
+              if system == "win32":
+                range_size += os.stat(path + "\\" + f).st_size/1024L
+              else:
+                range_size += os.stat(path + "/" + f).st_size/1024L
+              count +=1
+            elif int(f.split(".")[0].split("_")[-1]) - int(p_frame) > 1: ##checking if there is a jump in the frame range
+  #            print f
+              #range_size += float(subprocess.Popen(["du","-sk",path + "/" + p_frame_suf +"_" + p_frame + "." + f.split(".")[-1]], stdout=subprocess.PIPE).communicate()[0].strip().split()[0])
+              if system == "win32":
+                range_size += os.stat(path + "\\" + p_frame_suf +"_" + p_frame + "." + f.split(".")[-1]).st_size/1024L
+              else:
+                range_size += os.stat(path + "/" + p_frame_suf +"_" + p_frame + "." + f.split(".")[-1]).st_size/1024L
+              count += 1
+              ranges[path].append([f_frame + "-" + p_frame + "." + f.split(".")[-1], count, range_size])
+              dir_size += range_size
+              range_size = 0L
+              #l_frame = f.split(".")[0]
+              f_frame = f.split(".")[0]
+              p_frame = f.split(".")[0].split("_")[-1]
+              p_frame_suf = "_".join((f.split(".")[0].split("_"))[:-1])
+              #range_size += float(subprocess.Popen(["du","-B1",path + "/" + f], stdout=subprocess.PIPE).communicate()[0].strip().split()[0])/1024L
+              if system == "win32":
+                range_size += os.stat(path + "\\" + f).st_size/1024L
+              else:
+                range_size += os.stat(path + "/" + f).st_size/1024L
+              total_count += count
+              count = 1
+            elif removed_mac_files.index(f) == len(removed_mac_files) - 1: #checking if we are at the end of the frames in this directory
+              #range_size += float(subprocess.Popen(["du","-B1",path + "/" + f], stdout=subprocess.PIPE).communicate()[0].strip().split()[0])/1024L
+              if system == "win32":
+                range_size += os.stat(path + "\\" + f).st_size/1024L
+              else:
+                range_size += os.stat(path + "/" + f).st_size/1024L
+              dir_size += range_size
+              count += 1 ##adding another frame to the count
+              total_count += count
+              ranges[path].append([f_frame + "-" + f.split(".")[0].split("_")[-1] + "." + f.split(".")[-1], count, range_size])
+              range_size = 0L
+              count = 0
+            else:    ##base case
+              p_frame = f.split(".")[0].split("_")[-1]  #grab first frame of the sequence as its the previous frame when count is 0
+              p_frame_suf = "_".join((f.split(".")[0].split("_"))[:-1])
+              #range_size += float(subprocess.Popen(["du","-B1",path + "/" + f], stdout=subprocess.PIPE).communicate()[0].strip().split()[0])/1024L
+              if system == "win32":
+                range_size += os.stat(path + "\\" + f).st_size/1024L
+              else:
+                range_size += os.stat(path + "/" + f).st_size/1024L
+              count += 1
+          elif not re.search(search_sp, f.split(".")[0])==None and len(f.split("."))==2:  #case where there is a space before the frame number
+            if count == 0:
+              #print "count is 0"
+              f_frame = f.split(".")[0]  #grab first frame of the sequence
+              p_frame = f.split(".")[0].split(" ")[-1]  #grab first frame of the sequence as its the previous frame when count is 0
+              #range_size += float(subprocess.Popen(["du","-B1",path + "/" + f], stdout=subprocess.PIPE).communicate()[0].strip().split()[0])/1024L
+              if system == "win32":
+                range_size += os.stat(path + "\\" + f).st_size/1024L
+              else:
+                range_size += os.stat(path + "/" + f).st_size/1024L
+              count +=1
+            elif int(f.split(".")[0].split(" ")[-1]) - int(p_frame) > 1:
+              #range_size += float(subprocess.Popen(["du","-sk",path + "/" + " ".join(f.split(".")[0].split(" ")[:-1]) + " " + p_frame + "." + f.split(".")[-1]], stdout=subprocess.PIPE).communicate()[0].strip().split()[0])
+              if system == "win32":
+                range_size += os.stat(path + "\\" + " ".join(f.split(".")[0].split(" ")[:-1]) + " " + p_frame + "." + f.split(".")[-1])
+              else:
+                range_size += os.stat(path + "/" + " ".join(f.split(".")[0].split(" ")[:-1]) + " " + p_frame + "." + f.split(".")[-1])
+              count += 1
+              ranges[path].append([f_frame + "-" + p_frame.split(" ")[-1] + "." + f.split(".")[-1], count, range_size])
+              dir_size += range_size
+              range_size = 0L
+              #l_frame = f.split(".")[0]
+              f_frame = f.split(".")[0]
+              p_frame = f.split(".")[0].split(" ")[-1]
+              #range_size += float(subprocess.Popen(["du","-B1",path + "/" + f], stdout=subprocess.PIPE).communicate()[0].strip().split()[0])/1024L
+              if system == "win32":
+                range_size += os.stat(path + "\\" + f).st_size/1024L
+              else:
+                range_size += os.stat(path + "/" + f).st_size/1024L
+              total_count += count
+              count = 1
+            elif removed_mac_files.index(f) == len(removed_mac_files) - 1:
+              #range_size += float(subprocess.Popen(["du","-B1",path + "/" + f], stdout=subprocess.PIPE).communicate()[0].strip().split()[0])/1024L
+              if system == "win32":
+                range_size += os.stat(path + "\\" + f).st_size/1024L
+              else:
+                range_size += os.stat(path + "/" + f).st_size/1024L
+              count += 1
+              dir_size += range_size
+              ranges[path].append([f_frame + "-" + f.split(".")[0].split(" ")[-1] + "." + f.split(".")[-1], count, range_size])
+              total_count += count
+              range_size = 0L
+              count = 0
+            else:
+              p_frame = f.split(".")[0].split(" ")[-1]
+              #range_size += float(subprocess.Popen(["du","-B1",path + "/" + f], stdout=subprocess.PIPE).communicate()[0].strip().split()[0])/1024L
+              range_size += os.stat(path + "/" + f).st_size/1024L
+          elif not re.search(search_num, f.split(".")[0])==None and len(f.split("."))==2:        #base case where the filename is just a frame number and an extension
+            if count == 0:
+              #print "count is 0"
+              f_frame = f.split(".")[0]  #grab first frame of the sequence
+              p_frame = f.split(".")[0]  #grab first frame of the sequence as its the previous frame when count is 0
+              #range_size += float(subprocess.Popen(["du","-B1",path + "/" + f], stdout=subprocess.PIPE).communicate()[0].strip().split()[0])/1024L
+              if system == "win32":
+                range_size += os.stat(path + "\\" + f).st_size/1024L
+              else:
+                range_size += os.stat(path + "/" + f).st_size/1024L
+              count +=1
+            elif int(f.split(".")[0]) - int(p_frame) > 1:
+              #range_size += float(subprocess.Popen(["du","-B1",path + "/" + p_frame + "." + f.split(".")[-1]], stdout=subprocess.PIPE).communicate()[0].strip().split()[0])/1024L
+              if system == "win32":
+                range_size += os.stat(path + "\\" + p_frame + "." + f.split(".")[-1]).st_size/1024L
+              else:
+                range_size += os.stat(path + "/" + p_frame + "." + f.split(".")[-1]).st_size/1024L
+              count += 1
+              ranges[path].append([f_frame + "-" + p_frame + "." + f.split(".")[-1], count, range_size])
+              dir_size += range_size
+              range_size = 0L
+              #l_frame = f.split(".")[0]
+              f_frame = f.split(".")[0]
+              p_frame = f.split(".")[0]
+              #range_size += float(subprocess.Popen(["du","-B1",path + "/" + f], stdout=subprocess.PIPE).communicate()[0].strip().split()[0])/1024L
+              if system == "win32":
+                range_size += os.stat(path + "\\" + f).st_size/1024L
+              else:
+                range_size += os.stat(path + "/" + f).st_size/1024L
+              total_count += count
+              count = 1
+            elif removed_mac_files.index(f) == len(removed_mac_files) - 1:
+              #range_size += float(subprocess.Popen(["du","-B1",path + "/" + f], stdout=subprocess.PIPE).communicate()[0].strip().split()[0])/1024L
+              if system == "win32":
+                range_size += os.stat(path + "\\" + f).st_size/1024L
+              else:
+                range_size += os.stat(path + "/" + f).st_size/1024L
+              dir_size += range_size
+              count += 1
+              ranges[path].append([f_frame + "-" + f.split(".")[0] + "." + f.split(".")[-1], count, range_size])
+              total_count += count
+              range_size = 0L
+              count = 0
+            else:
+              p_frame = f.split(".")[0]
+              #range_size += float(subprocess.Popen(["du","-B1",path + "/" + f], stdout=subprocess.PIPE).communicate()[0].strip().split()[0])/1024L
+              if system == "win32":
+                range_size += os.stat(path + "\\" + f).st_size/1024L
+              else:
+                range_size += os.stat(path + "/" + f).st_size/1024L
+              count += 1
+#      print ranges
+#            print "===================================================================="
+#      print "size of directory is: " + str(dir_size)
+      #if dir_size == 0:
+      #  print path
+#      print path
+      ranges[path].append(["total", dir_size])  #lastly we add the total size to the dictionary
+      #for key in ranges:
+      #  print key, ranges[key]
+      total_size += dir_size
+
+  ##now we start writing to the file
+  f = open(file, "a");
   ##Here we go through all the ranges in the dictionary and print them out with their sizes on the same line
+  #print "\n============================================================================================================================\n"
   ##writing to file the hostname and the serial number of the machine that did the directory listing
-  #f.write("Date and time created: %s \n" % date_time)
-  #f.write("Hostname: " + hostname + "\n")
-  #if not serial_num == "":
-  #  f.write("Serial Number: " + serial_num + "\n")
-  #output.append("\n============================================================================================================================\n")
-  #f.write("\n============================================================================================================================\n")
-  #output.append("\n Directory listing of: " + dir_a +" \n")
-  #f.write("\n Directory listing of: " + dir_a +" \n")
-  #output.append("\n")
-  #f.write("\n")
+  f.write("Date and time created: %s \n" % date_time)
+  f.write("Hostname: " + hostname + "\n")
+  if not serial_num == "":
+    f.write("Serial Number: " + serial_num + "\n")
+  output.append("\n============================================================================================================================\n")
+  f.write("\n============================================================================================================================\n")
+  #print "\n Directory listing of: " + dir_a +" \n"
+  output.append("\n Directory listing of: " + dir_a +" \n")
+  f.write("\n Directory listing of: " + dir_a +" \n")
+  #print "\n"
+  output.append("\n")
+  f.write("\n")
   for dir in sorted(ranges.iterkeys()):
+    #print ranges[dir]
+    #if not ranges[dir][-1][-1]==0:  ##Checking that we dont have a higher directory with nothing in it
     for range in ranges[dir]:
+      #print range[0] + ", \t" + "Size: " + str(range[-1]) + ", range list length: " + str(len(range))
       if not range[0] == "total":
         if system == "win32":
           spec_index = dir.split("\\").index(path_specified)##index of the specified directory in the root path
           if len(str(range[-1]).split(".")[0]) == 0 or len(str(range[-1]).split(".")[0]) < 4:
-            print "\n\t" + "/".join(dir.split("/")[spec_index:]) + "/" + range[0] + " \n\t" + "Total: %d file(s) Size: %0.2f KB\n" % (range[-2],(range[-1]))
-            #output.append("\n\t" + "\\".join(dir.split("\\")[spec_index:]) + "\\" + range[0] + " \n\t" + "Total: %d file(s) Size: %0.2f KB\n" % (range[-2],(range[-1])))
-            #f.write("\n\t" + "\\".join(dir.split("\\")[spec_index:]) + "\\" + range[0] + " \n\t" + "Total: %d file(s) Size: %0.2f KB\n" % (range[-2],(range[-1])))
+            #print "\n\t" + "/".join(dir.split("/")[spec_index:]) + "/" + range[0] + " \n\t" + "Total: %d file(s) Size: %0.2f KB\n" % (range[-2],(range[-1]))
+            output.append("\n\t" + "\\".join(dir.split("\\")[spec_index:]) + "\\" + range[0] + " \n\t" + "Total: %d file(s) Size: %0.2f KB\n" % (range[-2],(range[-1])))
+            f.write("\n\t" + "\\".join(dir.split("\\")[spec_index:]) + "\\" + range[0] + " \n\t" + "Total: %d file(s) Size: %0.2f KB\n" % (range[-2],(range[-1])))
           elif len(str(range[-1]).split(".")[0]) == 4 or len(str(range[-1]).split(".")[0]) < 7:
-            print "\n\t" + "/".join(dir.split("/")[spec_index:]) + "/" + range[0] + " \n\t" + "Total: %d file(s) Size: %0.2f MB\n" % (range[-2],(range[-1]/div_meg))
-            #output.append("\n\t" + "\\".join(dir.split("\\")[spec_index:]) + "\\" + range[0] + " \n\t" + "Total: %d file(s) Size: %0.2f MB\n" % (range[-2],(range[-1]/div_meg)))
-            #f.write("\n\t" + "\\".join(dir.split("\\")[spec_index:]) + "\\" + range[0] + " \n\t" + "Total: %d file(s) Size: %0.2f MB\n" % (range[-2],(range[-1]/div_meg)))
+            #print "\n\t" + "/".join(dir.split("/")[spec_index:]) + "/" + range[0] + " \n\t" + "Total: %d file(s) Size: %0.2f MB\n" % (range[-2],(range[-1]/div_meg))
+            output.append("\n\t" + "\\".join(dir.split("\\")[spec_index:]) + "\\" + range[0] + " \n\t" + "Total: %d file(s) Size: %0.2f MB\n" % (range[-2],(range[-1]/div_meg)))
+            f.write("\n\t" + "\\".join(dir.split("\\")[spec_index:]) + "\\" + range[0] + " \n\t" + "Total: %d file(s) Size: %0.2f MB\n" % (range[-2],(range[-1]/div_meg)))
           elif len(str(range[-1]).split(".")[0]) == 7 or len(str(range[-1]).split(".")[0]) < 10:
-            print "\n\t" + "/".join(dir.split("/")[spec_index:]) + "/" + range[0] + " \n\t" + "Total: %d file(s) Size: %0.2f GB\n" % (range[-2],(range[-1]/div_gig))
-            #output.append("\n\t" + "\\".join(dir.split("\\")[spec_index:]) + "\\" + range[0] + " \n\t" + "Total: %d file(s) Size: %0.2f GB\n" % (range[-2],(range[-1]/div_gig)))
-            #f.write("\n\t" + "\\".join(dir.split("\\")[spec_index:]) + "\\" + range[0] + " \n\t" + "Total: %d file(s) Size: %0.2f GB\n" % (range[-2],(range[-1]/div_gig)))
+            #print "\n\t" + "/".join(dir.split("/")[spec_index:]) + "/" + range[0] + " \n\t" + "Total: %d file(s) Size: %0.2f GB\n" % (range[-2],(range[-1]/div_gig))
+            output.append("\n\t" + "\\".join(dir.split("\\")[spec_index:]) + "\\" + range[0] + " \n\t" + "Total: %d file(s) Size: %0.2f GB\n" % (range[-2],(range[-1]/div_gig)))
+            f.write("\n\t" + "\\".join(dir.split("\\")[spec_index:]) + "\\" + range[0] + " \n\t" + "Total: %d file(s) Size: %0.2f GB\n" % (range[-2],(range[-1]/div_gig)))
           elif len(str(range[-1]).split(".")[0]) == 10 or len(str(range[-1]).split(".")[0]) < 13:
-            print "\n\t" + "/".join(dir.split("/")[spec_index:]) + "/" + range[0] + " \n\t" + "Total: %d file(s) Size: %0.2f TB\n" % (range[-2],(range[-1]/div_tb))
-            #output.append("\n\t" + "/".join(dir.split("\\")[spec_index:]) + "\\" + range[0] + " \n\t" + "Total: %d file(s) Size: %0.2f TB\n" % (range[-2],(range[-1]/div_tb)))
-            #f.write("\n\t" + "\\".join(dir.split("\\")[spec_index:]) + "\\" + range[0] + " \n\t" + "Total: %d file(s) Size: %0.2f TB\n" % (range[-2],(range[-1]/div_tb)))
+            #print "\n\t" + "/".join(dir.split("/")[spec_index:]) + "/" + range[0] + " \n\t" + "Total: %d file(s) Size: %0.2f TB\n" % (range[-2],(range[-1]/div_tb))
+            output.append("\n\t" + "/".join(dir.split("\\")[spec_index:]) + "\\" + range[0] + " \n\t" + "Total: %d file(s) Size: %0.2f TB\n" % (range[-2],(range[-1]/div_tb)))
+            f.write("\n\t" + "\\".join(dir.split("\\")[spec_index:]) + "\\" + range[0] + " \n\t" + "Total: %d file(s) Size: %0.2f TB\n" % (range[-2],(range[-1]/div_tb)))
         else:
           spec_index = dir.split("/").index(path_specified)##index of the specified directory in the root path
           if len(str(range[-1]).split(".")[0]) == 0 or len(str(range[-1]).split(".")[0]) < 4:
-            print "\n\t" + "/".join(dir.split("/")[spec_index:]) + "/" + range[0] + " \n\t" + "Total: %d file(s) Size: %0.2f KB\n" % (range[-2],(range[-1]))
-            #output.append("\n\t" + "/".join(dir.split("/")[spec_index:]) + "/" + range[0] + " \n\t" + "Total: %d file(s) Size: %0.2f KB\n" % (range[-2],(range[-1])))
-            #f.write("\n\t" + "/".join(dir.split("/")[spec_index:]) + "/" + range[0] + " \n\t" + "Total: %d file(s) Size: %0.2f KB\n" % (range[-2],(range[-1])))
+            #print "\n\t" + "/".join(dir.split("/")[spec_index:]) + "/" + range[0] + " \n\t" + "Total: %d file(s) Size: %0.2f KB\n" % (range[-2],(range[-1]))
+            output.append("\n\t" + "/".join(dir.split("/")[spec_index:]) + "/" + range[0] + " \n\t" + "Total: %d file(s) Size: %0.2f KB\n" % (range[-2],(range[-1])))
+            f.write("\n\t" + "/".join(dir.split("/")[spec_index:]) + "/" + range[0] + " \n\t" + "Total: %d file(s) Size: %0.2f KB\n" % (range[-2],(range[-1])))
           elif len(str(range[-1]).split(".")[0]) == 4 or len(str(range[-1]).split(".")[0]) < 7:
-            print "\n\t" + "/".join(dir.split("/")[spec_index:]) + "/" + range[0] + " \n\t" + "Total: %d file(s) Size: %0.2f MB\n" % (range[-2],(range[-1]/div_meg))
-            #output.append("\n\t" + "/".join(dir.split("/")[spec_index:]) + "/" + range[0] + " \n\t" + "Total: %d file(s) Size: %0.2f MB\n" % (range[-2],(range[-1]/div_meg)))
-            #f.write("\n\t" + "/".join(dir.split("/")[spec_index:]) + "/" + range[0] + " \n\t" + "Total: %d file(s) Size: %0.2f MB\n" % (range[-2],(range[-1]/div_meg)))
+            #print "\n\t" + "/".join(dir.split("/")[spec_index:]) + "/" + range[0] + " \n\t" + "Total: %d file(s) Size: %0.2f MB\n" % (range[-2],(range[-1]/div_meg))
+            output.append("\n\t" + "/".join(dir.split("/")[spec_index:]) + "/" + range[0] + " \n\t" + "Total: %d file(s) Size: %0.2f MB\n" % (range[-2],(range[-1]/div_meg)))
+            f.write("\n\t" + "/".join(dir.split("/")[spec_index:]) + "/" + range[0] + " \n\t" + "Total: %d file(s) Size: %0.2f MB\n" % (range[-2],(range[-1]/div_meg)))
           elif len(str(range[-1]).split(".")[0]) == 7 or len(str(range[-1]).split(".")[0]) < 10:
-            print "\n\t" + "/".join(dir.split("/")[spec_index:]) + "/" + range[0] + " \n\t" + "Total: %d file(s) Size: %0.2f GB\n" % (range[-2],(range[-1]/div_gig))
-            #output.append("\n\t" + "/".join(dir.split("/")[spec_index:]) + "/" + range[0] + " \n\t" + "Total: %d file(s) Size: %0.2f GB\n" % (range[-2],(range[-1]/div_gig)))
-            #f.write("\n\t" + "/".join(dir.split("/")[spec_index:]) + "/" + range[0] + " \n\t" + "Total: %d file(s) Size: %0.2f GB\n" % (range[-2],(range[-1]/div_gig)))
+            #print "\n\t" + "/".join(dir.split("/")[spec_index:]) + "/" + range[0] + " \n\t" + "Total: %d file(s) Size: %0.2f GB\n" % (range[-2],(range[-1]/div_gig))
+            output.append("\n\t" + "/".join(dir.split("/")[spec_index:]) + "/" + range[0] + " \n\t" + "Total: %d file(s) Size: %0.2f GB\n" % (range[-2],(range[-1]/div_gig)))
+            f.write("\n\t" + "/".join(dir.split("/")[spec_index:]) + "/" + range[0] + " \n\t" + "Total: %d file(s) Size: %0.2f GB\n" % (range[-2],(range[-1]/div_gig)))
           elif len(str(range[-1]).split(".")[0]) == 10 or len(str(range[-1]).split(".")[0]) < 13:
-            print "\n\t" + "/".join(dir.split("/")[spec_index:]) + "/" + range[0] + " \n\t" + "Total: %d file(s) Size: %0.2f TB\n" % (range[-2],(range[-1]/div_tb))
-            #output.append("\n\t" + "/".join(dir.split("/")[spec_index:]) + "/" + range[0] + " \n\t" + "Total: %d file(s) Size: %0.2f TB\n" % (range[-2],(range[-1]/div_tb)))
-            #f.write("\n\t" + "/".join(dir.split("/")[spec_index:]) + "/" + range[0] + " \n\t" + "Total: %d file(s) Size: %0.2f TB\n" % (range[-2],(range[-1]/div_tb)))
+            #print "\n\t" + "/".join(dir.split("/")[spec_index:]) + "/" + range[0] + " \n\t" + "Total: %d file(s) Size: %0.2f TB\n" % (range[-2],(range[-1]/div_tb))
+            output.append("\n\t" + "/".join(dir.split("/")[spec_index:]) + "/" + range[0] + " \n\t" + "Total: %d file(s) Size: %0.2f TB\n" % (range[-2],(range[-1]/div_tb)))
+            f.write("\n\t" + "/".join(dir.split("/")[spec_index:]) + "/" + range[0] + " \n\t" + "Total: %d file(s) Size: %0.2f TB\n" % (range[-2],(range[-1]/div_tb)))
         
   if len(str(total_size).split(".")[0]) == 0 or len(str(total_size).split(".")[0]) < 4:
-    print "\n=======================================================================\n"
-    #output.append("\n=======================================================================\n")
-    #f.write("\n=======================================================================\n")
-    print "Overall Total:\n\t Number of Files found: %d file(s), Total size: %0.2f KB\n" % (total_count, total_size)
-    #output.append("Overall Total:\n\t Number of Files found: %d file(s), Total size: %0.2f KB\n" % (total_count, total_size))
-    #f.write("Overall Total:\n\t Number of Files found: %d file(s), Total size: %0.2f KB\n" % (total_count, total_size))
-    print "\n=======================================================================\n"
-    #output.append("\n=======================================================================\n")
-    #f.write("\n=======================================================================\n")
+    #print "\n=======================================================================\n"
+    output.append("\n=======================================================================\n")
+    f.write("\n=======================================================================\n")
+    #print "Overall Total:\n\t Number of Files found: %d file(s), Total size: %0.2f KB\n" % (total_count, total_size)
+    output.append("Overall Total:\n\t Number of Files found: %d file(s), Total size: %0.2f KB\n" % (total_count, total_size))
+    f.write("Overall Total:\n\t Number of Files found: %d file(s), Total size: %0.2f KB\n" % (total_count, total_size))
+    #print "\n=======================================================================\n"
+    output.append("\n=======================================================================\n")
+    f.write("\n=======================================================================\n")
   elif len(str(total_size).split(".")[0]) == 4 or len(str(total_size).split(".")[0]) < 7:
-    print "\n=======================================================================\n"
-    #output.append("\n=======================================================================\n")
-    #f.write("\n=======================================================================\n")
-    print "Overall Total:\n\t Number of Files found: %d file(s), Total size: %0.2f MB\n" % (total_count, total_size/div_meg)
-    #output.append("Overall Total:\n\t Number of Files found: %d file(s), Total size: %0.2f MB\n" % (total_count, total_size/div_meg))
-    #f.write("Overall Total:\n\t Number of Files found: %d file(s), Total size: %0.2f MB\n" % (total_count, total_size/div_meg))
-    print "\n=======================================================================\n"
-    #output.append("\n=======================================================================\n")
-    #f.write("\n=======================================================================\n")
+    #print "\n=======================================================================\n"
+    output.append("\n=======================================================================\n")
+    f.write("\n=======================================================================\n")
+    #print "Overall Total:\n\t Number of Files found: %d file(s), Total size: %0.2f MB\n" % (total_count, total_size/div_meg)
+    output.append("Overall Total:\n\t Number of Files found: %d file(s), Total size: %0.2f MB\n" % (total_count, total_size/div_meg))
+    f.write("Overall Total:\n\t Number of Files found: %d file(s), Total size: %0.2f MB\n" % (total_count, total_size/div_meg))
+    #print "\n=======================================================================\n"
+    output.append("\n=======================================================================\n")
+    f.write("\n=======================================================================\n")
   elif len(str(range[0]).split(".")[0]) == 7 or len(str(range[0]).split(".")[0]) < 10:
-    print "\n=======================================================================\n"
-    #output.append("\n=======================================================================\n")
-    #f.write("\n=======================================================================\n")
-    print "Overall Total:\n\t Number of Files found: %d file(s), Total size: %0.2f GB\n" % (total_count, total_size/div_gig)
-    #output.append("Overall Total:\n\t Number of Files found: %d file(s), Total size: %0.2f GB\n" % (total_count, total_size/div_gig))
-    #f.write("Overall Total:\n\t Number of Files found: %d file(s), Total size: %0.2f GB\n" % (total_count, total_size/div_gig))
-    print "\n=======================================================================\n"
-    #output.append("\n=======================================================================\n")
-    #f.write("\n=======================================================================\n")
+    #print "\n=======================================================================\n"
+    output.append("\n=======================================================================\n")
+    f.write("\n=======================================================================\n")
+    #print "Overall Total:\n\t Number of Files found: %d file(s), Total size: %0.2f GB\n" % (total_count, total_size/div_gig)
+    output.append("Overall Total:\n\t Number of Files found: %d file(s), Total size: %0.2f GB\n" % (total_count, total_size/div_gig))
+    f.write("Overall Total:\n\t Number of Files found: %d file(s), Total size: %0.2f GB\n" % (total_count, total_size/div_gig))
+    #print "\n=======================================================================\n"
+    output.append("\n=======================================================================\n")
+    f.write("\n=======================================================================\n")
   elif len(str(range[0]).split(".")[0]) == 10 or len(str(range[0]).split(".")[0]) < 13:
-    print "\n=======================================================================\n"
-    #output.append("\n=======================================================================\n")
-    #f.write("\n=======================================================================\n")
-    print "Overall Total:\n\t Number of Files found: %d file(s), Total size: %0.2f TB\n" % (total_count, total_size/div_tb)
-    #output.append("Overall Total:\n\t Number of Files found: %d file(s), Total size: %0.2f TB\n" % (total_count, total_size/div_tb))
-    #f.write("Overall Total:\n\t Number of Files found: %d file(s), Total size: %0.2f TB\n" % (total_count, total_size/div_tb))
-    print "\n=======================================================================\n"
-    #output.append("\n=======================================================================\n")
-    #f.write("\n=======================================================================\n")
+    #print "\n=======================================================================\n"
+    output.append("\n=======================================================================\n")
+    f.write("\n=======================================================================\n")
+    #print "Overall Total:\n\t Number of Files found: %d file(s), Total size: %0.2f TB\n" % (total_count, total_size/div_tb)
+    output.append("Overall Total:\n\t Number of Files found: %d file(s), Total size: %0.2f TB\n" % (total_count, total_size/div_tb))
+    f.write("Overall Total:\n\t Number of Files found: %d file(s), Total size: %0.2f TB\n" % (total_count, total_size/div_tb))
+    #print "\n=======================================================================\n"
+    output.append("\n=======================================================================\n")
+    f.write("\n=======================================================================\n")
         
-  #f.close()
-  #os.chmod(file, 0777)
-  print "======================================================================="
-  #output.append("=======================================================================\n")
-  print "Finished writing directory listing!"
-  #output.append("Finished writing directory listing!")
-  #return (file,output)
-
-def get_listings(root, files, OS):
-  directories = []
-  system = OS
-  path = root    #working directory
-  dir_size = 0L    #the total size of the current directory
-  range_size = 0L    #the total size of the current frame range
-  dir_count = 0L ##the total number of files found
-  frame_num = re.compile("([\d]+)")
-  directories.append(path)
-  #path = path + "@"*(len(files[0].split(".")[0])) + ".dpx"
-  ranges = []
-  #removed_mac_files = []
-  #print files
-  count = 0
-  new_files = sorted(files)
-   
-  for f in new_files:
-    #if not f.split(".")[-1] in files_check and re.search(search_mac, f)==None and re.search(search_mac2, f)==None:
-    #print f
-    #if not f.split(".")[-1] in files_check and re.search(search_mac, f)==None:
-    #frame_match = frame_num.match(f)
-    #f_groups = frame_match.groups()
-    f_groups = re.findall(frame_num, f)
-    #if f_groups and f.split(".")[-1] in image_format:  # case where we have something with a number in it
-    if f_groups and f.rindex(f_groups[-1][-1]) == f.rindex(".")-1:  # case where we have something with a number in it and the number is next to a dot at the end we hope
-      # because the rindex will go to the end and search if there is a number and a dot at the beginning we are screwed....
-      if count == 0:
-        #print "count is 0"
-        #f_frame = ".".join(f.split(".")[:-1])  #grab first frame of the sequence
-        f_frame = f.split(f_groups[-1])[0] + f_groups[-1]  #grab first frame of the sequence
-        #p_frame = f.split(".")[-2]  #grab first frame of the sequence as its the previous frame when count is 0
-        p_frame = f_groups[-1]  #grab first frame of the sequence as its the previous frame when count is 0
-        p_prefix = f.split(f_groups[-1])[0]
-        p_post = f.split(f_groups[-1])[-1]
-        #range_size += float(subprocess.Popen(["du","-sk",path + "/" + f], stdout=subprocess.PIPE).communicate()[0].strip().split()[0])
-        if system == "win32":
-          range_size += os.stat(path + "\\" + f).st_size/1024L
-        else:
-          range_size += os.stat(path + "/" + f).st_size/1024L
-        count +=1
-        if new_files.index(f) == len(new_files) - 1:
-          if system == "win32":
-            range_size += os.stat(path + "\\" + f).st_size/1024L
-          else:
-            range_size += os.stat(path + "/" + f).st_size/1024L
-          dir_size += range_size
-          #count += 1
-          dir_count += count
-          ranges.append([f, count, range_size])
-          range_size = 0L
-          count = 0
-      elif int(f_groups[-1]) - int(p_frame) > 1:
-        #range_size += float(subprocess.Popen(["du","-B1",path + "/" + f.split(".")[0] + "." + p_frame + "." + f.split(".")[-1]], stdout=subprocess.PIPE).communicate()[0].strip().split()[0])/1024L
-        if system == "win32":
-          range_size += os.stat(path + "\\" + p_prefix + p_frame + p_post).st_size/1024L
-        else:
-          range_size += os.stat(path + "/" + p_prefix + p_frame + p_post).st_size/1024L
-        if count > 1:
-          ranges.append([f_frame + "-" + p_frame + p_post, count, range_size])
-        else:
-          ranges.append([f, count, range_size])
-        dir_size += range_size
-        range_size = 0L
-        #l_frame = f.split(".")[0]
-        f_frame = f.split(f_groups[-1])[0] + f_groups[-1]  #grab first frame of the sequence
-        p_frame = f_groups[-1]  #grab first frame of the sequence as its the previous frame when count is 0
-        p_prefix = f.split(f_groups[-1])[0]
-        p_post = f.split(f_groups[-1])[-1]
-        range_size = 0L
-        #range_size += float(subprocess.Popen(["du","-sk",path + "/" + f], stdout=subprocess.PIPE).communicate()[0].strip().split()[0])
-        if system == "win32":
-          range_size += os.stat(path + "\\" + f).st_size/1024L
-        else:
-          range_size += os.stat(path + "/" + f).st_size/1024L
-        dir_count += count
-        count = 1
-        if new_files.index(f) == len(new_files) - 1:
-          if system == "win32":
-            range_size += os.stat(path + "\\" + f).st_size/1024L
-          else:
-            range_size += os.stat(path + "/" + f).st_size/1024L
-          dir_size += range_size
-          #count += 1
-          dir_count += count
-          ranges.append([f, count, range_size])
-          range_size = 0L
-          count = 0
-      elif new_files.index(f) == len(new_files) - 1:
-        #range_size += float(subprocess.Popen(["du","-B1",path + "/" + f], stdout=subprocess.PIPE).communicate()[0].strip().split()[0])/1024L
-        if system == "win32":
-          range_size += os.stat(path + "\\" + f).st_size/1024L
-        else:
-          range_size += os.stat(path + "/" + f).st_size/1024L
-        dir_size += range_size
-        count += 1
-        dir_count += count
-        if f.split(f_groups[-1])[0] == p_prefix:
-          ranges.append([f_frame + "-" + f_groups[-1] + "." + f.split(".")[-1], count, range_size])
-        else:
-          ranges.append([f, count, range_size])
-        range_size = 0L
-        count = 0
-      else:
-        p_frame = f_groups[-1]
-        #range_size += float(subprocess.Popen(["du","-B1",path + "/" + f], stdout=subprocess.PIPE).communicate()[0].strip().split()[0])/1024L
-        if system == "win32":
-          range_size += os.stat(path + "\\" + f).st_size/1024L
-        else:
-          range_size += os.stat(path + "/" + f).st_size/1024L
-        count += 1
-    else: ##checking if we have anything else and getting their sizes
-      if new_files.index(f) == len(new_files) - 1:
-        #range_size += float(subprocess.Popen(["du","-B1",path + "/" + f], stdout=subprocess.PIPE).communicate()[0].strip().split()[0])/1024L
-        if system == "win32":
-          range_size += os.stat(path + "\\" + f).st_size/1024L
-        else:
-          range_size += os.stat(path + "/" + f).st_size/1024L
-        dir_size += range_size
-        count += 1
-        ranges.append([f, count, range_size])
-        range_size = 0L
-        dir_count += count
-        count = 0
-      else:
-        #range_size += float(subprocess.Popen(["du","-B1",path + "/" + f], stdout=subprocess.PIPE).communicate()[0].strip().split()[0])/1024L
-        if system == "win32":
-          range_size += os.stat(path + "\\" + f).st_size/1024L
-        else:
-          range_size += os.stat(path + "/" + f).st_size/1024L
-        dir_size += range_size
-        count += 1
-        ranges.append([f, count, range_size])
-        range_size = 0L
-        dir_count += count
-        count = 0
-  ranges.append(["total", dir_size])  #lastly we add the total size to the dictionary
-  return (ranges, dir_count, dir_size)
+#  f.write("=======================================================================")
+#  f.write("The total size of the directory is: " + str(total_size))
+#  f.write("=======================================================================")
+  f.close()
+  os.chmod(file, 0777)
+  #print "======================================================================="
+  output.append("=======================================================================\n")
+  #print "Finished writing directory listing!"
+  output.append("Finished writing directory listing!")
+  return (file,output)
 
 """
   Method to grab all the directories of a copied folder
@@ -724,9 +845,4 @@ if __name__ == '__main__':
   result = pool.apply_async(f, [10])
   print result.get(timeout=1)
   print pool.map(f, range(10))
-  parser = OptionParser()
-  parser.add_option("-d", "--directory", dest="directory", help="list the contents of a directory", metavar="DIR")
-  (options, args) = parser.parse_args()
-  directory = options.directory
-  list_directories(directory)
-  list_directories()
+  
