@@ -96,6 +96,7 @@ class MainWindow(QWidget):
 
   def createDirectoryListing(self):
     dirListSaveDir = ""
+    prefix = ""
     if self.myWidget.findChild(QLineEdit, 'sourceLineEdit').text() == "":
       msgBox = QMessageBox()
       msgBox.setIcon(QMessageBox.Critical)
@@ -104,11 +105,18 @@ class MainWindow(QWidget):
       return
     else:
       directory = self.myWidget.findChild(QLineEdit, 'sourceLineEdit').text()
+
+    if self.myWidget.findChild(QLineEdit,'prefixLineEdit').isEnabled():
+      prefix = self.myWidget.findChild(QLineEdit, 'prefixLineEdit').text()
+
     if not self.myWidget.findChild(QLineEdit,'dirListingFileSaveLineEdit').text() == "":
       dirListSaveDir = self.myWidget.findChild(QLineEdit,'dirListingFileSaveLineEdit').text()
-    (f,output) = list_directories(directory)
+    output = list_directories(directory)
     for out in output:
       self.myWidget.findChild(QTextEdit, 'outputTextEdit').append(out)
+
+    if dirListSaveDir:
+      write_output_to_file(dirListSaveDir, prefix, output)
     #self.myWidget.findChild(QTextEdit, 'outputTextEdit').append("creating directory listing....")
 
   # create directory listing for the Directory listing and check tab
