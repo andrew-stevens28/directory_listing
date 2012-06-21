@@ -2,7 +2,7 @@
 
 # Form implementation generated from reading ui file 'dir_listing_gui_qt_v1.ui'
 #
-# Created: Wed May 30 23:07:47 2012
+# Created: Fri Jun 15 11:47:46 2012
 #      by: PyQt4 UI code generator 4.9.1
 #
 # WARNING! All changes made in this file will be lost!
@@ -471,6 +471,11 @@ class Ui_dialog(object):
         self.pushButton.setGeometry(QtCore.QRect(713, 780, 171, 32))
         self.pushButton.setObjectName(_fromUtf8("pushButton"))
 
+        self.sourcePushButton.clicked.connect(self.selectSourceDirectory)
+        self.dirListingFileSavePushButton.clicked.connect(self.selectDirListingFileSaveDirectory)
+
+        self.addPrefixCheckBox.stateChanged.connect(self.setPrefixLineEdit)
+
         self.retranslateUi(dialog)
         self.tabWidget.setCurrentIndex(1)
         QtCore.QObject.connect(self.addPrefixCheckBox, QtCore.SIGNAL(_fromUtf8("stateChanged(int)")), self.prefixLineEdit.show)
@@ -500,3 +505,29 @@ class Ui_dialog(object):
         self.tabWidget.setTabText(self.tabWidget.indexOf(self.dirCheckTab), QtGui.QApplication.translate("dialog", "Directory Listing and Check", None, QtGui.QApplication.UnicodeUTF8))
         self.pushButton.setText(QtGui.QApplication.translate("dialog", "Quit", None, QtGui.QApplication.UnicodeUTF8))
 
+    def selectSourceDirectory(self):
+      self.sourceLineEdit.setText(QtGui.QFileDialog.getExistingDirectory())
+
+    def selectDirListingFileSaveDirectory(self):
+      self.dirListingFileSaveLineEdit.setText(QtGui.QFileDialog.getExistingDirectory())
+
+    def setPrefixLineEdit(self):
+      if self.prefixLineEdit.isEnabled():
+        self.prefixLineEdit.setEnabled(False)
+      else:
+        self.prefixLineEdit.setEnabled(True)
+
+    def selectDirListingCheckFileSaveDirectory(self):
+      self.dirListingCheckFileSaveLineEdit.setText(QtGui.QFileDialog.getExistingDirectory())
+
+    def selectSourceCheckDirectory(self):
+      self.sourceCheckLineEdit.setText(QtGui.QFileDialog.getExistingDirectory())
+
+    def selectDestDirectory(self):
+      self.destLineEdit.setText(QtGui.QFileDialog.getExistingDirectory())
+
+    def setPrefixLineEdit(self):
+      if self.prefixLineEdit.isEnabled():
+        self.prefixLineEdit.setEnabled(False)
+      else:
+        self.prefixLineEdit.setEnabled(True)
