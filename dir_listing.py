@@ -1,7 +1,8 @@
 from multiprocessing import *
 from yaml import load
-import os, sys, shutil, time, datetime, re, filecmp, subprocess, logging #, hashlib
+import os, sys, shutil, time, datetime, re, filecmp, subprocess, logging, multiprocessing, Queue #, hashlib
 from optparse import OptionParser
+from worker import Worker
 
 """
 A script to traverse a file structure and return the sizes of all the sequences, the number
@@ -68,6 +69,10 @@ def list_directories(dir_a):
   total_size = 0L  #the total size of the directory
   total_count = 0L ##the total number of files found
   output = []
+  work_queue = multiprocessing.JoinableQueue()   ## queue to hold work for the workers
+  result_queue = multiprocessing.Queue() ## queue to hold data returned from workers
+  num_procs = multiprocessing.cpu_count()  ## get the number of processors on the machine
+  num_jobs = 0
   date_time = getDateTime()
   system = sys.platform
   #t = time.localtime(time.time())
@@ -108,17 +113,43 @@ def list_directories(dir_a):
         serial_num = q.groups()[-1].strip()
   
   #full_tree = os.walk(dir_a)  #full tree of directories to check
+
+  ## adding jobs to the queue
   for root, dirs, files in os.walk(dir_a):  #since os.walk returns a tuple, we traverse the tuple and grab the 3 attributes of each directory
     working_dir = root
     path = root    #working directory
     #if not files == [] and not root.split("/")[-1] in dir_check and re.search(search_mac_spot, root)==None and re.search(search_mac_apple_dbl, root)==None:
     if not files == []:
-      dir_count = 0L
-      dir_size = 0L
-      (ranges_list, dir_count, dir_size) = get_listings(root, files, system)
-      ranges[path] = ranges_list
-      total_size += dir_size
-      total_count += dir_count
+      #(ranges_list, dir_count, dir_size) = get_listings(root, files, system)
+      work_queue.put([root, files, system])
+      num_jobs += 1
+
+  print work_queue
+
+  #spawn workers
+  for i in range(num_procs):
+    worker = Worker(work_queue, result_queue)
+    worker.start()
+
+  ## add a kill switch for the workers, i.e. 'None'
+  for i in range(num_procs):
+    work_queue.put(None)
+
+  print "about to join queue"
+
+  ## wait for all the jobs to finish
+  work_queue.join()
+
+  print "queue has joined, now processing data..."
+  
+  for i in range(0, num_jobs):
+    ret_job = result_queue.get()
+    dir_count = ret_job[2]
+    dir_size = ret_job[3]
+    ranges[ret_job[0]] = ret_job[1]
+    total_size += dir_size
+    total_count += dir_count
+
   #print ranges
   ##now we start writing to the file
 
@@ -132,42 +163,42 @@ def list_directories(dir_a):
   output.append("\n Directory listing of: " + dir_a +" \n")
   output.append("\n")
   for dir in sorted(ranges.iterkeys()):
-    for range in ranges[dir]:
-      if not range[0] == "total":
+    for r in ranges[dir]:
+      if not r[0] == "total":
         if system == "win32":
           spec_index = dir.split("\\").index(path_specified)##index of the specified directory in the root path
-          if len(str(range[-1]).split(".")[0]) == 0 or len(str(range[-1]).split(".")[0]) < 4:
-            #print "\n\t" + "/".join(dir.split("/")[spec_index:]) + "/" + range[0] + " \n\t" + "Total: %d file(s) Size: %0.2f B\n" % (range[-2],(range[-1]))
-            output.append("\n\t" + "\\".join(dir.split("\\")[spec_index:]) + "\\" + range[0] + " \n\t" + "Total: %d file(s) Size: %0.2f B\n" % (range[-2],(range[-1])))
-          elif len(str(range[-1]).split(".")[0]) == 4 or len(str(range[-1]).split(".")[0]) < 7:
-            #print "\n\t" + "/".join(dir.split("/")[spec_index:]) + "/" + range[0] + " \n\t" + "Total: %d file(s) Size: %0.2f KB\n" % (range[-2],(range[-1]/div_meg))
-            output.append("\n\t" + "\\".join(dir.split("\\")[spec_index:]) + "\\" + range[0] + " \n\t" + "Total: %d file(s) Size: %0.2f KB\n" % (range[-2],(range[-1]/div_meg)))
-          elif len(str(range[-1]).split(".")[0]) == 7 or len(str(range[-1]).split(".")[0]) < 10:
-            #print "\n\t" + "/".join(dir.split("/")[spec_index:]) + "/" + range[0] + " \n\t" + "Total: %d file(s) Size: %0.2f MB\n" % (range[-2],(range[-1]/div_gig))
-            output.append("\n\t" + "\\".join(dir.split("\\")[spec_index:]) + "\\" + range[0] + " \n\t" + "Total: %d file(s) Size: %0.2f MB\n" % (range[-2],(range[-1]/div_gig)))
-          elif len(str(range[-1]).split(".")[0]) == 10 or len(str(range[-1]).split(".")[0]) < 13:
-            #print "\n\t" + "/".join(dir.split("/")[spec_index:]) + "/" + range[0] + " \n\t" + "Total: %d file(s) Size: %0.2f GB\n" % (range[-2],(range[-1]/div_tb))
-            output.append("\n\t" + "/".join(dir.split("\\")[spec_index:]) + "\\" + range[0] + " \n\t" + "Total: %d file(s) Size: %0.2f GB\n" % (range[-2],(range[-1]/div_tb)))
-          elif len(str(range[-1]).split(".")[0]) == 13 or len(str(range[-1]).split(".")[0]) < 16:
-            #print "\n\t" + "/".join(dir.split("/")[spec_index:]) + "/" + range[0] + " \n\t" + "Total: %d file(s) Size: %0.2f TB\n" % (range[-2],(range[-1]/div_tb))
-            output.append("\n\t" + "/".join(dir.split("\\")[spec_index:]) + "\\" + range[0] + " \n\t" + "Total: %d file(s) Size: %0.2f TB\n" % (range[-2],(range[-1]/div_tb)))
+          if len(str(r[-1]).split(".")[0]) == 0 or len(str(r[-1]).split(".")[0]) < 4:
+            #print "\n\t" + "/".join(dir.split("/")[spec_index:]) + "/" + r[0] + " \n\t" + "Total: %d file(s) Size: %0.2f B\n" % (r[-2],(r[-1]))
+            output.append("\n\t" + "\\".join(dir.split("\\")[spec_index:]) + "\\" + r[0] + " \n\t" + "Total: %d file(s) Size: %0.2f B\n" % (r[-2],(r[-1])))
+          elif len(str(r[-1]).split(".")[0]) == 4 or len(str(r[-1]).split(".")[0]) < 7:
+            #print "\n\t" + "/".join(dir.split("/")[spec_index:]) + "/" + r[0] + " \n\t" + "Total: %d file(s) Size: %0.2f KB\n" % (r[-2],(r[-1]/div_meg))
+            output.append("\n\t" + "\\".join(dir.split("\\")[spec_index:]) + "\\" + r[0] + " \n\t" + "Total: %d file(s) Size: %0.2f KB\n" % (r[-2],(r[-1]/div_meg)))
+          elif len(str(r[-1]).split(".")[0]) == 7 or len(str(r[-1]).split(".")[0]) < 10:
+            #print "\n\t" + "/".join(dir.split("/")[spec_index:]) + "/" + r[0] + " \n\t" + "Total: %d file(s) Size: %0.2f MB\n" % (r[-2],(r[-1]/div_gig))
+            output.append("\n\t" + "\\".join(dir.split("\\")[spec_index:]) + "\\" + r[0] + " \n\t" + "Total: %d file(s) Size: %0.2f MB\n" % (r[-2],(r[-1]/div_gig)))
+          elif len(str(r[-1]).split(".")[0]) == 10 or len(str(r[-1]).split(".")[0]) < 13:
+            #print "\n\t" + "/".join(dir.split("/")[spec_index:]) + "/" + r[0] + " \n\t" + "Total: %d file(s) Size: %0.2f GB\n" % (r[-2],(r[-1]/div_tb))
+            output.append("\n\t" + "/".join(dir.split("\\")[spec_index:]) + "\\" + r[0] + " \n\t" + "Total: %d file(s) Size: %0.2f GB\n" % (r[-2],(r[-1]/div_tb)))
+          elif len(str(r[-1]).split(".")[0]) == 13 or len(str(r[-1]).split(".")[0]) < 16:
+            #print "\n\t" + "/".join(dir.split("/")[spec_index:]) + "/" + r[0] + " \n\t" + "Total: %d file(s) Size: %0.2f TB\n" % (r[-2],(r[-1]/div_tb))
+            output.append("\n\t" + "/".join(dir.split("\\")[spec_index:]) + "\\" + r[0] + " \n\t" + "Total: %d file(s) Size: %0.2f TB\n" % (r[-2],(r[-1]/div_tb)))
         else:
           spec_index = dir.split("/").index(path_specified)##index of the specified directory in the root path
-          if len(str(range[-1]).split(".")[0]) == 0 or len(str(range[-1]).split(".")[0]) < 4:
-            #print "\n\t" + "/".join(dir.split("/")[spec_index:]) + "/" + range[0] + " \n\t" + "Total: %d file(s) Size: %0.2f B\n" % (range[-2],(range[-1]))
-            output.append("\n\t" + "/".join(dir.split("/")[spec_index:]) + "/" + range[0] + " \n\t" + "Total: %d file(s) Size: %0.2f B\n" % (range[-2],(range[-1])))
-          elif len(str(range[-1]).split(".")[0]) == 4 or len(str(range[-1]).split(".")[0]) < 7:
-            #print "\n\t" + "/".join(dir.split("/")[spec_index:]) + "/" + range[0] + " \n\t" + "Total: %d file(s) Size: %0.2f KB\n" % (range[-2],(range[-1]/div_meg))
-            output.append("\n\t" + "/".join(dir.split("/")[spec_index:]) + "/" + range[0] + " \n\t" + "Total: %d file(s) Size: %0.2f KB\n" % (range[-2],(range[-1]/div_meg)))
-          elif len(str(range[-1]).split(".")[0]) == 7 or len(str(range[-1]).split(".")[0]) < 10:
-            #print "\n\t" + "/".join(dir.split("/")[spec_index:]) + "/" + range[0] + " \n\t" + "Total: %d file(s) Size: %0.2f MB\n" % (range[-2],(range[-1]/div_gig))
-            output.append("\n\t" + "/".join(dir.split("/")[spec_index:]) + "/" + range[0] + " \n\t" + "Total: %d file(s) Size: %0.2f MB\n" % (range[-2],(range[-1]/div_gig)))
-          elif len(str(range[-1]).split(".")[0]) == 10 or len(str(range[-1]).split(".")[0]) < 13:
-            #print "\n\t" + "/".join(dir.split("/")[spec_index:]) + "/" + range[0] + " \n\t" + "Total: %d file(s) Size: %0.2f GB\n" % (range[-2],(range[-1]/div_tb))
-            output.append("\n\t" + "/".join(dir.split("/")[spec_index:]) + "/" + range[0] + " \n\t" + "Total: %d file(s) Size: %0.2f GB\n" % (range[-2],(range[-1]/div_tb)))
-          elif len(str(range[-1]).split(".")[0]) == 13 or len(str(range[-1]).split(".")[0]) < 16:
-            #print "\n\t" + "/".join(dir.split("/")[spec_index:]) + "/" + range[0] + " \n\t" + "Total: %d file(s) Size: %0.2f TB\n" % (range[-2],(range[-1]/div_tb))
-            output.append("\n\t" + "/".join(dir.split("/")[spec_index:]) + "/" + range[0] + " \n\t" + "Total: %d file(s) Size: %0.2f TB\n" % (range[-2],(range[-1]/div_tb)))
+          if len(str(r[-1]).split(".")[0]) == 0 or len(str(r[-1]).split(".")[0]) < 4:
+            #print "\n\t" + "/".join(dir.split("/")[spec_index:]) + "/" + r[0] + " \n\t" + "Total: %d file(s) Size: %0.2f B\n" % (r[-2],(r[-1]))
+            output.append("\n\t" + "/".join(dir.split("/")[spec_index:]) + "/" + r[0] + " \n\t" + "Total: %d file(s) Size: %0.2f B\n" % (r[-2],(r[-1])))
+          elif len(str(r[-1]).split(".")[0]) == 4 or len(str(r[-1]).split(".")[0]) < 7:
+            #print "\n\t" + "/".join(dir.split("/")[spec_index:]) + "/" + r[0] + " \n\t" + "Total: %d file(s) Size: %0.2f KB\n" % (r[-2],(r[-1]/div_meg))
+            output.append("\n\t" + "/".join(dir.split("/")[spec_index:]) + "/" + r[0] + " \n\t" + "Total: %d file(s) Size: %0.2f KB\n" % (r[-2],(r[-1]/div_meg)))
+          elif len(str(r[-1]).split(".")[0]) == 7 or len(str(r[-1]).split(".")[0]) < 10:
+            #print "\n\t" + "/".join(dir.split("/")[spec_index:]) + "/" + r[0] + " \n\t" + "Total: %d file(s) Size: %0.2f MB\n" % (r[-2],(r[-1]/div_gig))
+            output.append("\n\t" + "/".join(dir.split("/")[spec_index:]) + "/" + r[0] + " \n\t" + "Total: %d file(s) Size: %0.2f MB\n" % (r[-2],(r[-1]/div_gig)))
+          elif len(str(r[-1]).split(".")[0]) == 10 or len(str(r[-1]).split(".")[0]) < 13:
+            #print "\n\t" + "/".join(dir.split("/")[spec_index:]) + "/" + r[0] + " \n\t" + "Total: %d file(s) Size: %0.2f GB\n" % (r[-2],(r[-1]/div_tb))
+            output.append("\n\t" + "/".join(dir.split("/")[spec_index:]) + "/" + r[0] + " \n\t" + "Total: %d file(s) Size: %0.2f GB\n" % (r[-2],(r[-1]/div_tb)))
+          elif len(str(r[-1]).split(".")[0]) == 13 or len(str(r[-1]).split(".")[0]) < 16:
+            #print "\n\t" + "/".join(dir.split("/")[spec_index:]) + "/" + r[0] + " \n\t" + "Total: %d file(s) Size: %0.2f TB\n" % (r[-2],(r[-1]/div_tb))
+            output.append("\n\t" + "/".join(dir.split("/")[spec_index:]) + "/" + r[0] + " \n\t" + "Total: %d file(s) Size: %0.2f TB\n" % (r[-2],(r[-1]/div_tb)))
         
   if len(str(total_size).split(".")[0]) == 0 or len(str(total_size).split(".")[0]) < 4:
     #print "\n=======================================================================\n"
@@ -183,21 +214,21 @@ def list_directories(dir_a):
     output.append("Overall Total:\n\t Number of Files found: %d file(s), Total size: %0.2f KB\n" % (total_count, total_size/div_meg))
     #print "\n=======================================================================\n"
     output.append("\n=======================================================================\n")
-  elif len(str(range[0]).split(".")[0]) == 7 or len(str(range[0]).split(".")[0]) < 10:
+  elif len(str(r[0]).split(".")[0]) == 7 or len(str(r[0]).split(".")[0]) < 10:
     #print "\n=======================================================================\n"
     output.append("\n=======================================================================\n")
     #print "Overall Total:\n\t Number of Files found: %d file(s), Total size: %0.2f MB\n" % (total_count, total_size/div_gig)
     output.append("Overall Total:\n\t Number of Files found: %d file(s), Total size: %0.2f MB\n" % (total_count, total_size/div_gig))
     #print "\n=======================================================================\n"
     output.append("\n=======================================================================\n")
-  elif len(str(range[0]).split(".")[0]) == 10 or len(str(range[0]).split(".")[0]) < 13:
+  elif len(str(r[0]).split(".")[0]) == 10 or len(str(r[0]).split(".")[0]) < 13:
     #print "\n=======================================================================\n"
     output.append("\n=======================================================================\n")
     #print "Overall Total:\n\t Number of Files found: %d file(s), Total size: %0.2f GB\n" % (total_count, total_size/div_tb)
     output.append("Overall Total:\n\t Number of Files found: %d file(s), Total size: %0.2f GB\n" % (total_count, total_size/div_tb))
     #print "\n=======================================================================\n"
     output.append("\n=======================================================================\n")
-  elif len(str(range[0]).split(".")[0]) == 13 or len(str(range[0]).split(".")[0]) < 16:
+  elif len(str(r[0]).split(".")[0]) == 13 or len(str(r[0]).split(".")[0]) < 16:
     #print "\n=======================================================================\n"
     output.append("\n=======================================================================\n")
     #print "Overall Total:\n\t Number of Files found: %d file(s), Total size: %0.2f TB\n" % (total_count, total_size/div_tb)
@@ -211,6 +242,7 @@ def list_directories(dir_a):
   output.append("Finished writing directory listing!")
   return output
 
+"""
 def get_listings(root, files, OS):
   directories = []
   system = OS
@@ -348,6 +380,7 @@ def get_listings(root, files, OS):
         count = 0
   ranges.append(["total", dir_size])  #lastly we add the total size to the dictionary
   return (ranges, dir_count, dir_size)
+"""
 
 """
   Method to grab all the directories of a copied folder
