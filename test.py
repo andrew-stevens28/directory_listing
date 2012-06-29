@@ -7,8 +7,10 @@ from PySide.QtUiTools import *
 #from PyQt4.QtGui import *
 from PySide.QtCore import *
 from PySide.QtGui import *
+from time import time
 
-from dir_listing import *
+#from dir_listing import *
+from process_thread import ProcessWorker
 
 #from dir_listing_gui_qt_v1 import Ui_dialog
 
@@ -33,6 +35,9 @@ class MainWindow(QWidget):
 
     #self.setCentralWidget(self.myWidget)
 
+    ## initialize the thread here
+    self.workerThread = ProcessWorker()
+
     self.myWidget.setMinimumSize(985,850)
     layout = QVBoxLayout()
     layout.addWidget(self.myWidget)
@@ -43,6 +48,7 @@ class MainWindow(QWidget):
     avail_widgets = self.myWidget.findChildren(QPushButton)
 
     self.setWidgetProperties()
+
     #QObject.connect(self.pushButton, SIGNAL("released()"), self.mymethod)
     #QObject.connect(myWidget.pushButton, SIGNAL("released()"), self.mymethod)
     #quit_button = self.myWidget.findChild(QPushButton, 'Quit')
@@ -55,6 +61,7 @@ class MainWindow(QWidget):
     self.myWidget.findChild(QPushButton,'createPushButton').clicked.connect(self.createDirectoryListing)
     self.myWidget.findChild(QPushButton,'clearPushButton').clicked.connect(self.clearOutputTextEdit)
     self.myWidget.findChild(QCheckBox,'addPrefixCheckBox').stateChanged.connect(self.setPrefixLineEdit)
+
     # directory listing and file check pushbuttons and checkboxes
     self.myWidget.findChild(QPushButton,'sourceDirCheckPushButton').clicked.connect(self.selectSourceDirCheckDirectory)
     self.myWidget.findChild(QPushButton,'destDirCheckPushButton').clicked.connect(self.selectDestDirCheckDirectory)
@@ -62,6 +69,9 @@ class MainWindow(QWidget):
     self.myWidget.findChild(QCheckBox,'addPrefixDirCheckCheckBox').stateChanged.connect(self.setPrefixDirCheckLineEdit)
     self.myWidget.findChild(QPushButton,'createDirCheckPushButton').clicked.connect(self.createDirectoryListingDirCheck)
     self.myWidget.findChild(QPushButton,'clearDirCheckPushButton').clicked.connect(self.clearOutputDirCheckTextEdit)
+
+    ## handlers for thread
+    self.workerThread.signal.sig.connect(self.workerThreadFinished)
 
   def selectSourceDirectory(self):
     self.myWidget.findChild(QLineEdit,'sourceLineEdit').setText(QFileDialog.getExistingDirectory())
@@ -111,12 +121,28 @@ class MainWindow(QWidget):
 
     if not self.myWidget.findChild(QLineEdit,'dirListingFileSaveLineEdit').text() == "":
       dirListSaveDir = self.myWidget.findChild(QLineEdit,'dirListingFileSaveLineEdit').text()
-    output = list_directories(directory)
-    for out in output:
-      self.myWidget.findChild(QTextEdit, 'outputTextEdit').append(out)
+    # get the time before the list directory started
+    #start_proc = time()
+    #output = list_directories(directory)
 
-    if dirListSaveDir:
-      write_output_to_file(dirListSaveDir, prefix, output)
+    ## setting up thread stuff here
+    if not self.workerThread.isRunning():
+      self.workerThread.stopped = False
+      self.workerThread.initialize(directory)
+      self.workerThread.start()
+      self.myWidget.findChild(QTextEdit, 'outputTextEdit').append("Directory listing has started, please wait...\n")
+      self.myWidget.findChild(QPushButton,'createPushButton').setEnabled(False)
+
+    # and we get the end time of the process
+    #end_proc = time()
+    
+    #for out in output:
+    #  self.myWidget.findChild(QTextEdit, 'outputTextEdit').append(out)
+
+    #print "it took: %f to process the listing" % (end_proc - start_proc)
+
+    #if dirListSaveDir:
+    #  write_output_to_file(dirListSaveDir, prefix, output)
     #self.myWidget.findChild(QTextEdit, 'outputTextEdit').append("creating directory listing....")
 
   # create directory listing for the Directory listing and check tab
@@ -131,6 +157,12 @@ class MainWindow(QWidget):
     if not self.myWidget.findChild(QLineEdit,'dirListingDirCheckFileSaveLineEdit').text() == "":
       dirListSaveDir = self.myWidget.findChild(QLineEdit,'dirListingDirCheckFileSaveLineEdit').text()
     self.myWidget.findChild(QTextEdit, 'outputDirCheckTextEdit').append("creating directory listing....")
+
+  def workerThreadFinished(self, data):
+    self.myWidget.findChild(QTextEdit, 'outputTextEdit').append("Finished Directory listing!\n")
+    for out in data:
+      self.myWidget.findChild(QTextEdit, 'outputTextEdit').append(out)
+    self.myWidget.findChild(QPushButton,'createPushButton').setEnabled(True)
 
   def clearOutputTextEdit(self):
     self.myWidget.findChild(QTextEdit, 'outputTextEdit').clear()

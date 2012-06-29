@@ -12,8 +12,6 @@ number of files found is written to a file
 Author: Andrew Stevens
 """
 
-formats_file = 'image_formats.yaml'
-
 ##This method returns the date in a certain format
 def getDate():
   return datetime.datetime.now().strftime("%Y-%m-%d") 
@@ -29,12 +27,6 @@ def get_valid_file(dir_listing):
 def get_full_path(dir_name, file_name):
   joined_file_name = os.path.join(dir_name, file_name)
   return joined_file_name
-
-def get_image_formats():
-  f = open(formats_file, 'r')
-  image_f = load(f)
-  f.close()
-  return image_f
 
 def write_output_to_file(save_path, prefix, output):
   st = getDate()
@@ -69,8 +61,11 @@ def list_directories(dir_a):
   total_size = 0L  #the total size of the directory
   total_count = 0L ##the total number of files found
   output = []
-  work_queue = multiprocessing.JoinableQueue()   ## queue to hold work for the workers
-  result_queue = multiprocessing.Queue() ## queue to hold data returned from workers
+  received_jobs = []
+  #work_queue = multiprocessing.JoinableQueue()   ## queue to hold work for the workers
+  work_queue = multiprocessing.Queue()   ## queue to hold work for the workers
+  #result_queue = multiprocessing.Queue() ## queue to hold data returned from workers
+  result_queue = multiprocessing.JoinableQueue() ## queue to hold data returned from workers
   num_procs = multiprocessing.cpu_count()  ## get the number of processors on the machine
   num_jobs = 0
   date_time = getDateTime()
@@ -82,10 +77,6 @@ def list_directories(dir_a):
   elif system == 'win32':
     path_specified = dir_a.strip("\\").split("\\")[-1]  ## the parent directory with all the folders, etc in it
 
-  #files_check = ["data", "bak"]        ## files to not count
-  #dir_check = ["128x96"]          ##directories to not include
-  #other_file_check = ["tiff", "dpx", "cin", "ari", "exr", "tif", "jpg", "tga"]    ##image extensions to check for
-  #image_format = get_image_formats()
   file_name = "directory_log_" + getDate()
   search_sp = re.compile(r"\s[0-9]+$")
   search_un = re.compile(r"_[0-9]+$")
@@ -103,6 +94,7 @@ def list_directories(dir_a):
   div_tb = 1024.0*1024*1024
   serial_num = ""
   hostname = ""
+  #procs = []
   if system == "darwin":
     ##getting the OS, hostname and serial number of the system (we get the serial number only if its a mac)
     hostname = subprocess.Popen(["hostname"], stdout=subprocess.PIPE).communicate()[0]
@@ -115,7 +107,7 @@ def list_directories(dir_a):
   #full_tree = os.walk(dir_a)  #full tree of directories to check
 
   ## adding jobs to the queue
-  for root, dirs, files in os.walk(dir_a):  #since os.walk returns a tuple, we traverse the tuple and grab the 3 attributes of each directory
+  for root, dirs, files in os.walk(dir_a, followlinks=True):  #since os.walk returns a tuple, we traverse the tuple and grab the 3 attributes of each directory
     working_dir = root
     path = root    #working directory
     #if not files == [] and not root.split("/")[-1] in dir_check and re.search(search_mac_spot, root)==None and re.search(search_mac_apple_dbl, root)==None:
@@ -124,25 +116,37 @@ def list_directories(dir_a):
       work_queue.put([root, files, system])
       num_jobs += 1
 
-  print work_queue
+  #print work_queue
 
   #spawn workers
   for i in range(num_procs):
     worker = Worker(work_queue, result_queue)
+    #procs.append(worker)
     worker.start()
 
   ## add a kill switch for the workers, i.e. 'None'
   for i in range(num_procs):
     work_queue.put(None)
 
-  print "about to join queue"
+  # work around until joinable queue bug is fixed.
+  #getting all the jobs on the result_queue
+  #for i in range(num_procs):
+  #while len(received_jobs) < num_jobs:
+  #  received_jobs.append(result_queue.get())
+  #  #time.sleep(2)
+
+  #print "about to join queue"
 
   ## wait for all the jobs to finish
-  work_queue.join()
+  ## shouldnt join the queues since this results in deadlocks currently... but with newer versions of python this should go away...
+  result_queue.join()
+  #for p in procs:
+  #  p.join()
 
-  print "queue has joined, now processing data..."
+  #print "queue has joined, now processing data..."
   
-  for i in range(0, num_jobs):
+  #for job in received_jobs:
+  for i in range(num_jobs):
     ret_job = result_queue.get()
     dir_count = ret_job[2]
     dir_size = ret_job[3]
@@ -150,6 +154,10 @@ def list_directories(dir_a):
     total_size += dir_size
     total_count += dir_count
 
+  # closing queues as this will bring a lot of brain tumours because the program seems stuck even when its not..
+  print "closing queues"
+  work_queue.close()
+  result_queue.close()
   #print ranges
   ##now we start writing to the file
 
@@ -242,145 +250,6 @@ def list_directories(dir_a):
   output.append("Finished writing directory listing!")
   return output
 
-"""
-def get_listings(root, files, OS):
-  directories = []
-  system = OS
-  path = root    #working directory
-  dir_size = 0L    #the total size of the current directory
-  range_size = 0L    #the total size of the current frame range
-  dir_count = 0L ##the total number of files found
-  frame_num = re.compile("([\d]+)")
-  directories.append(path)
-  #path = path + "@"*(len(files[0].split(".")[0])) + ".dpx"
-  ranges = []
-  #removed_mac_files = []
-  #print files
-  count = 0
-  new_files = sorted(files)
-   
-  for f in new_files:
-    #if not f.split(".")[-1] in files_check and re.search(search_mac, f)==None and re.search(search_mac2, f)==None:
-    #print f
-    #if not f.split(".")[-1] in files_check and re.search(search_mac, f)==None:
-    #frame_match = frame_num.match(f)
-    #f_groups = frame_match.groups()
-    f_groups = re.findall(frame_num, f)
-    #if f_groups and f.split(".")[-1] in image_format:  # case where we have something with a number in it
-    if "." in f and f_groups and f.rindex(f_groups[-1][-1]) == f.rindex(".")-1:  # case where we have something with a number in it and the number is next to a dot at the end we hope
-      # because the rindex will go to the end and search if there is a number and a dot at the beginning we are screwed....
-      if count == 0:
-        #print "count is 0"
-        #f_frame = ".".join(f.split(".")[:-1])  #grab first frame of the sequence
-        f_frame = f.split(f_groups[-1])[0] + f_groups[-1]  #grab first frame of the sequence
-        #p_frame = f.split(".")[-2]  #grab first frame of the sequence as its the previous frame when count is 0
-        p_frame = f_groups[-1]  #grab first frame of the sequence as its the previous frame when count is 0
-        p_prefix = f.split(f_groups[-1])[0]
-        p_post = f.split(f_groups[-1])[-1]
-        #range_size += float(subprocess.Popen(["du","-sk",path + "/" + f], stdout=subprocess.PIPE).communicate()[0].strip().split()[0])
-        if system == "win32":
-          range_size += os.stat(path + "\\" + f).st_size/1L
-        else:
-          range_size += os.stat(path + "/" + f).st_size/1L
-        count +=1
-        if new_files.index(f) == len(new_files) - 1:
-          if system == "win32":
-            range_size += os.stat(path + "\\" + f).st_size/1L
-          else:
-            range_size += os.stat(path + "/" + f).st_size/1L
-          dir_size += range_size
-          #count += 1
-          dir_count += count
-          ranges.append([f, count, range_size])
-          range_size = 0L
-          count = 0
-      elif int(f_groups[-1]) - int(p_frame) > 1:
-        #range_size += float(subprocess.Popen(["du","-B1",path + "/" + f.split(".")[0] + "." + p_frame + "." + f.split(".")[-1]], stdout=subprocess.PIPE).communicate()[0].strip().split()[0])/1024L
-        if system == "win32":
-          range_size += os.stat(path + "\\" + p_prefix + p_frame + p_post).st_size/1L
-        else:
-          range_size += os.stat(path + "/" + p_prefix + p_frame + p_post).st_size/1L
-        if count > 1:
-          ranges.append([f_frame + "-" + p_frame + p_post, count, range_size])
-        else:
-          ranges.append([f, count, range_size])
-        dir_size += range_size
-        range_size = 0L
-        #l_frame = f.split(".")[0]
-        f_frame = f.split(f_groups[-1])[0] + f_groups[-1]  #grab first frame of the sequence
-        p_frame = f_groups[-1]  #grab first frame of the sequence as its the previous frame when count is 0
-        p_prefix = f.split(f_groups[-1])[0]
-        p_post = f.split(f_groups[-1])[-1]
-        range_size = 0L
-        #range_size += float(subprocess.Popen(["du","-sk",path + "/" + f], stdout=subprocess.PIPE).communicate()[0].strip().split()[0])
-        if system == "win32":
-          range_size += os.stat(path + "\\" + f).st_size/1L
-        else:
-          range_size += os.stat(path + "/" + f).st_size/1L
-        dir_count += count
-        count = 1
-        if new_files.index(f) == len(new_files) - 1:
-          if system == "win32":
-            range_size += os.stat(path + "\\" + f).st_size/1L
-          else:
-            range_size += os.stat(path + "/" + f).st_size/1L
-          dir_size += range_size
-          #count += 1
-          dir_count += count
-          ranges.append([f, count, range_size])
-          range_size = 0L
-          count = 0
-      elif new_files.index(f) == len(new_files) - 1:
-        #range_size += float(subprocess.Popen(["du","-B1",path + "/" + f], stdout=subprocess.PIPE).communicate()[0].strip().split()[0])/1024L
-        if system == "win32":
-          range_size += os.stat(path + "\\" + f).st_size/1L
-        else:
-          range_size += os.stat(path + "/" + f).st_size/1L
-        dir_size += range_size
-        count += 1
-        dir_count += count
-        if f.split(f_groups[-1])[0] == p_prefix:
-          ranges.append([f_frame + "-" + f_groups[-1] + "." + f.split(".")[-1], count, range_size])
-        else:
-          ranges.append([f, count, range_size])
-        range_size = 0L
-        count = 0
-      else:
-        p_frame = f_groups[-1]
-        #range_size += float(subprocess.Popen(["du","-B1",path + "/" + f], stdout=subprocess.PIPE).communicate()[0].strip().split()[0])/1024L
-        if system == "win32":
-          range_size += os.stat(path + "\\" + f).st_size/1L
-        else:
-          range_size += os.stat(path + "/" + f).st_size/1L
-        count += 1
-    else: ##checking if we have anything else and getting their sizes
-      if new_files.index(f) == len(new_files) - 1:
-        #range_size += float(subprocess.Popen(["du","-B1",path + "/" + f], stdout=subprocess.PIPE).communicate()[0].strip().split()[0])/1024L
-        if system == "win32":
-          range_size += os.stat(path + "\\" + f).st_size/1L
-        else:
-          range_size += os.stat(path + "/" + f).st_size/1L
-        dir_size += range_size
-        count += 1
-        ranges.append([f, count, range_size])
-        range_size = 0L
-        dir_count += count
-        count = 0
-      else:
-        #range_size += float(subprocess.Popen(["du","-B1",path + "/" + f], stdout=subprocess.PIPE).communicate()[0].strip().split()[0])/1024L
-        if system == "win32":
-          range_size += os.stat(path + "\\" + f).st_size/1L
-        else:
-          range_size += os.stat(path + "/" + f).st_size/1L
-        dir_size += range_size
-        count += 1
-        ranges.append([f, count, range_size])
-        range_size = 0L
-        dir_count += count
-        count = 0
-  ranges.append(["total", dir_size])  #lastly we add the total size to the dictionary
-  return (ranges, dir_count, dir_size)
-"""
 
 """
   Method to grab all the directories of a copied folder
