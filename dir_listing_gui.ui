@@ -44,7 +44,7 @@
     <bool>true</bool>
    </property>
    <property name="currentIndex">
-    <number>1</number>
+    <number>0</number>
    </property>
    <widget class="QWidget" name="dirOnlyTab">
     <property name="focusPolicy">
@@ -227,7 +227,7 @@
     <widget class="QPushButton" name="createPushButton">
      <property name="geometry">
       <rect>
-       <x>190</x>
+       <x>40</x>
        <y>210</y>
        <width>241</width>
        <height>32</height>
@@ -252,7 +252,7 @@
     <widget class="QPushButton" name="clearPushButton">
      <property name="geometry">
       <rect>
-       <x>500</x>
+       <x>340</x>
        <y>210</y>
        <width>241</width>
        <height>32</height>
@@ -285,6 +285,25 @@
      </property>
      <property name="readOnly">
       <bool>true</bool>
+     </property>
+    </widget>
+    <widget class="QPushButton" name="cancelPushButton">
+     <property name="geometry">
+      <rect>
+       <x>630</x>
+       <y>210</y>
+       <width>241</width>
+       <height>32</height>
+      </rect>
+     </property>
+     <property name="focusPolicy">
+      <enum>Qt::StrongFocus</enum>
+     </property>
+     <property name="text">
+      <string>Cancel</string>
+     </property>
+     <property name="flat">
+      <bool>false</bool>
      </property>
     </widget>
    </widget>
@@ -427,7 +446,7 @@
     <widget class="QPushButton" name="clearDirCheckPushButton">
      <property name="geometry">
       <rect>
-       <x>500</x>
+       <x>330</x>
        <y>210</y>
        <width>241</width>
        <height>32</height>
@@ -475,7 +494,7 @@
     <widget class="QPushButton" name="createDirCheckPushButton">
      <property name="geometry">
       <rect>
-       <x>190</x>
+       <x>40</x>
        <y>210</y>
        <width>241</width>
        <height>32</height>
@@ -595,22 +614,22 @@
       <bool>true</bool>
      </property>
     </widget>
-    <zorder>destDirCheckLabel</zorder>
-    <zorder>destDirCheckPushButton</zorder>
-    <zorder>destDirCheckLineEdit</zorder>
-    <zorder>sourceDirCheckLineEdit</zorder>
-    <zorder>sourceDirCheckPushButton</zorder>
-    <zorder>sourceDirCheckLabel</zorder>
-    <zorder>clearDirCheckPushButton</zorder>
-    <zorder>prefixDirCheckLineEdit</zorder>
-    <zorder>addPrefixDirCheckCheckBox</zorder>
-    <zorder>createDirCheckPushButton</zorder>
-    <zorder>prefixDirCheckLabel</zorder>
-    <zorder>dirListingDirCheckFileSaveLabel</zorder>
-    <zorder>dirListingDirCheckFileSaveLineEdit</zorder>
-    <zorder>dirListingDirCheckFileSavePushButton</zorder>
-    <zorder>outputDirCheckTextEdit</zorder>
-    <zorder>outputDirCheckTextEdit</zorder>
+    <widget class="QPushButton" name="cancelDirCheckPushButton">
+     <property name="geometry">
+      <rect>
+       <x>630</x>
+       <y>210</y>
+       <width>241</width>
+       <height>32</height>
+      </rect>
+     </property>
+     <property name="focusPolicy">
+      <enum>Qt::StrongFocus</enum>
+     </property>
+     <property name="text">
+      <string>Cancel</string>
+     </property>
+    </widget>
    </widget>
   </widget>
   <widget class="QPushButton" name="quitPushButton">

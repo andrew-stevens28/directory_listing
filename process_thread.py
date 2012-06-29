@@ -13,7 +13,7 @@ class ProcessWorker(QThread):
   def __init__(self, parent=None):
     QThread.__init__(self, parent)
     self.stopped = False
-    self.mutex = QMutex
+    self.mutex = QMutex()
     self.path = None
     self.output = []
     self.signal = OutputSignal()
@@ -26,22 +26,22 @@ class ProcessWorker(QThread):
 
   def run(self):
     self.output = list_directories(self.path)
-    self.stopped = True
-    #self.stop()
+    #self.stopped = True
+    self.stop()
     #self.emit(SIGNAL("finished(bool)"), self.completed)
     #return output
     self.signal.sig.emit(self.output)
 
-  #def stop(self):
-  #  with QMutexLocker(self.mutex):
-  #    self.stopped = True
+  def stop(self):
+    with QMutexLocker(self.mutex):
+      self.stopped = True
   #  #try:
   #  #  self.mutex.lock()
   #  #  self.stopped = True
   #  #finally:
   #  #  self.mutex.unlock()
     
-  #def isStopped(self):
-  #  with QMutexLocker(self.mutex):
-  #    if self.stopped:
-  #      return
+  def isStopped(self):
+    with QMutexLocker(self.mutex):
+      if self.stopped:
+        return

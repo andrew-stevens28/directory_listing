@@ -60,6 +60,7 @@ class MainWindow(QWidget):
     self.myWidget.findChild(QPushButton,'dirListingFileSavePushButton').clicked.connect(self.selectDirListingFileSaveDirectory)
     self.myWidget.findChild(QPushButton,'createPushButton').clicked.connect(self.createDirectoryListing)
     self.myWidget.findChild(QPushButton,'clearPushButton').clicked.connect(self.clearOutputTextEdit)
+    self.myWidget.findChild(QPushButton,'cancelPushButton').clicked.connect(self.cancelDirectoryListing)
     self.myWidget.findChild(QCheckBox,'addPrefixCheckBox').stateChanged.connect(self.setPrefixLineEdit)
 
     # directory listing and file check pushbuttons and checkboxes
@@ -103,6 +104,9 @@ class MainWindow(QWidget):
       self.myWidget.findChild(QLineEdit,'prefixDirCheckLineEdit').setEnabled(False)
     else:
       self.myWidget.findChild(QLineEdit,'prefixDirCheckLineEdit').setEnabled(True)
+
+  def cancelDirectoryListing(self):
+    pass
 
   def createDirectoryListing(self):
     dirListSaveDir = ""
