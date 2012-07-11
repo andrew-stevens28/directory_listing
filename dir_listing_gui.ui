@@ -228,7 +228,7 @@
      <property name="geometry">
       <rect>
        <x>40</x>
-       <y>210</y>
+       <y>190</y>
        <width>241</width>
        <height>32</height>
       </rect>
@@ -253,7 +253,7 @@
      <property name="geometry">
       <rect>
        <x>340</x>
-       <y>210</y>
+       <y>190</y>
        <width>241</width>
        <height>32</height>
       </rect>
@@ -272,7 +272,7 @@
      <property name="geometry">
       <rect>
        <x>30</x>
-       <y>280</y>
+       <y>240</y>
        <width>841</width>
        <height>361</height>
       </rect>
@@ -291,7 +291,7 @@
      <property name="geometry">
       <rect>
        <x>630</x>
-       <y>210</y>
+       <y>190</y>
        <width>241</width>
        <height>32</height>
       </rect>
@@ -304,6 +304,51 @@
      </property>
      <property name="flat">
       <bool>false</bool>
+     </property>
+    </widget>
+    <widget class="QProgressBar" name="dirListingProgressBar">
+     <property name="geometry">
+      <rect>
+       <x>110</x>
+       <y>640</y>
+       <width>761</width>
+       <height>23</height>
+      </rect>
+     </property>
+     <property name="minimum">
+      <number>0</number>
+     </property>
+     <property name="value">
+      <number>1</number>
+     </property>
+    </widget>
+    <widget class="QLabel" name="dirListingProgressLabel">
+     <property name="geometry">
+      <rect>
+       <x>40</x>
+       <y>640</y>
+       <width>71</width>
+       <height>16</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>Progress:</string>
+     </property>
+    </widget>
+    <widget class="QLabel" name="dirListingProgressTypeLabel">
+     <property name="geometry">
+      <rect>
+       <x>340</x>
+       <y>610</y>
+       <width>231</width>
+       <height>20</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>Done</string>
+     </property>
+     <property name="alignment">
+      <set>Qt::AlignCenter</set>
      </property>
     </widget>
    </widget>
@@ -446,8 +491,8 @@
     <widget class="QPushButton" name="clearDirCheckPushButton">
      <property name="geometry">
       <rect>
-       <x>330</x>
-       <y>210</y>
+       <x>340</x>
+       <y>190</y>
        <width>241</width>
        <height>32</height>
       </rect>
@@ -465,7 +510,7 @@
      </property>
      <property name="geometry">
       <rect>
-       <x>422</x>
+       <x>360</x>
        <y>150</y>
        <width>181</width>
        <height>21</height>
@@ -478,7 +523,7 @@
     <widget class="QCheckBox" name="addPrefixDirCheckCheckBox">
      <property name="geometry">
       <rect>
-       <x>190</x>
+       <x>128</x>
        <y>150</y>
        <width>101</width>
        <height>20</height>
@@ -495,7 +540,7 @@
      <property name="geometry">
       <rect>
        <x>40</x>
-       <y>210</y>
+       <y>190</y>
        <width>241</width>
        <height>32</height>
       </rect>
@@ -519,7 +564,7 @@
     <widget class="QLabel" name="prefixDirCheckLabel">
      <property name="geometry">
       <rect>
-       <x>340</x>
+       <x>278</x>
        <y>150</y>
        <width>62</width>
        <height>21</height>
@@ -602,7 +647,7 @@
      <property name="geometry">
       <rect>
        <x>30</x>
-       <y>280</y>
+       <y>240</y>
        <width>841</width>
        <height>361</height>
       </rect>
@@ -618,7 +663,7 @@
      <property name="geometry">
       <rect>
        <x>630</x>
-       <y>210</y>
+       <y>190</y>
        <width>241</width>
        <height>32</height>
       </rect>
@@ -628,6 +673,64 @@
      </property>
      <property name="text">
       <string>Cancel</string>
+     </property>
+    </widget>
+    <widget class="QProgressBar" name="dirListingDirCheckProgressBar">
+     <property name="geometry">
+      <rect>
+       <x>110</x>
+       <y>640</y>
+       <width>761</width>
+       <height>23</height>
+      </rect>
+     </property>
+     <property name="minimum">
+      <number>0</number>
+     </property>
+     <property name="value">
+      <number>1</number>
+     </property>
+    </widget>
+    <widget class="QLabel" name="dirListingDirCheckProgressLabel">
+     <property name="geometry">
+      <rect>
+       <x>40</x>
+       <y>640</y>
+       <width>71</width>
+       <height>16</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>Progress:</string>
+     </property>
+    </widget>
+    <widget class="QCheckBox" name="checkSumDirCheckCheckBox">
+     <property name="geometry">
+      <rect>
+       <x>620</x>
+       <y>150</y>
+       <width>171</width>
+       <height>20</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>Create Check Sum File</string>
+     </property>
+    </widget>
+    <widget class="QLabel" name="dirListingDirCheckProgressTypeLabel">
+     <property name="geometry">
+      <rect>
+       <x>340</x>
+       <y>610</y>
+       <width>231</width>
+       <height>20</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>Done</string>
+     </property>
+     <property name="alignment">
+      <set>Qt::AlignCenter</set>
      </property>
     </widget>
    </widget>
