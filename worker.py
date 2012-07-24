@@ -1,16 +1,20 @@
 from multiprocessing import *
 from yaml import load
 import Queue, re, os
+from PySide.QtUiTools import *
+from PySide.QtCore import *
 
-class Worker(Process):
-  def __init__(self, work_queue, result_queue):
+class Worker(Process, QThread):
+  def __init__(self, work_queue, result_queue, checkType='', parent=None):
     #initiallise the worker
     #super.__init__(self)
     Process.__init__(self)
+    QThread.__init__(self,parent)
 
     #job management stuff
     self.work_queue = work_queue
     self.result_queue = result_queue
+    self.checkType = checkType
     #self.kill_received = False
     #self.terminate = False
     self.formats_file = 'image_formats.yaml'
@@ -58,6 +62,7 @@ class Worker(Process):
         #print ranges
         if not ranges == []:
           self.result_queue.put([job[0], ranges, dir_count, dir_size])
+          self.emit(SIGNAL("updateProgressBar%s(int)" % self.checkType ), 1)
           #self.result_queue.cancel_join_thread()
         else:
           break

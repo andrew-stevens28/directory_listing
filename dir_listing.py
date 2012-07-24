@@ -71,9 +71,10 @@ class DirectoryListing:
     f.close()
 
   #def list_directories(dir_a, save_path="", prefix=""):
-  def list_directories(self, dir_a):
+  def list_directories(self, dir_a, checkType=''):
     path = ""
     #file_path = ""
+    ct = checkType
     ranges = {}
     ranges_list = []
     f_frame = ""  #first frame in sequence
@@ -160,7 +161,7 @@ class DirectoryListing:
     if not self.exit.is_set():
       #spawn workers
       for i in range(num_procs):
-        worker = Worker(work_queue, result_queue)
+        worker = Worker(work_queue, result_queue, ct)
         self.procs.append(worker)
         worker.start()
   
@@ -457,22 +458,13 @@ class DirectoryListing:
   """
   This method is used to compare two directories and see if the files are the same
   """
-  def compare_dir(self, src, dir, job_name):
+  def compare_dir(self, src, dest):
     output = []      ##list to hold the output picked up from the directory comparison
     dir_detect = -1
     src_detect = -1
     count = -1      ## a count to check the number of files that are different
-    if dir == src:    ###checking to see if the source directory is the same as the 
-      #print "source directory is the same as the compare directory, enter the directory where the files were copied to"
-      output.append("""
-      ERROR: source directory is the same as the compare directory, enter the directory where the files were 
-      copied from in the 'Select Source Directory' field
-              """)
-      #print output
-      return (count, dir_detect, src_detect, output)
-      
     
-    (dir_dict, dir_detect, dir_nothing_found, dir_output) = self.get_files(dir)  ##destination dictionary of files grabs only directories that have files in them
+    (dir_dict, dir_detect, dir_nothing_found, dir_output) = self.get_files(dest)  ##destination dictionary of files grabs only directories that have files in them
     #print src_dict
     (src_dict, src_detect, src_nothing_found, src_output) = self.get_files(src)  ## compare dictionary with files to compare to source
     #print comp_dict

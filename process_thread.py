@@ -1,8 +1,8 @@
 import threading, time, os, re
 from PySide.QtUiTools import *
+from PySide.QtCore import *
 
 #from PySide.QtCore import QThread, QMutex, QObject, Signal
-from PySide.QtCore import *
 #from PySide.QtGui import *
 from dir_listing import DirectoryListing
 
@@ -20,28 +20,32 @@ class ProcessWorker(QThread):
     self.stopped = False
     self.mutex = QMutex()
     self.path = None
+    self.destPath = None
     self.output = []
     self.checkType = ''
     self.dirListSaveDir = ''
     self.prefix = ''
+    self.checksum = False
     #self.signal = OutputSignal()
     #self.sig_finished = FinishedSignal()
     self.listing = DirectoryListing()
 
-  def initialize(self, path, checkType='', dirListSaveDir='', prefix=''):
+  def initialize(self, path, checkType='', destPath='', dirListSaveDir='', prefix='',checksum=False):
     self.stopped = False
     self.path = path
+    self.destPath = destPath
     self.completed = False
     self.output = []
     self.checkType = checkType
     self.dirListSaveDir = dirListSaveDir
     self.prefix = prefix
+    self.checksum = checksum
 
   def run(self):
     num_jobs = self.getNumJobs()
     #print "number of jobs to do: %d" % num_jobs
     self.emit(SIGNAL("setProgressBar%s(int)" % self.checkType ), num_jobs)
-    self.output = self.listing.list_directories(self.path)
+    self.output = self.listing.list_directories(self.path, self.checkType)
     #self.stopped = True
     #self.stop()
     #self.emit(SIGNAL("finished(bool)"), self.completed)
@@ -52,7 +56,10 @@ class ProcessWorker(QThread):
         #self.signal.sig.emit(out)
         self.emit(SIGNAL("display%sOutput(QString)" % self.checkType), out)
       #print self.dirListSaveDir, self.prefix
-      if not self.dirListSaveDir == '':
+      if not self.destPath == '':
+        print "check directories!!!!"
+        #self.listing.check_dirs(self.path, self.destPath)
+      if not self.dirListSaveDir == '' and not self.output == []:
         #print "writing file..."
         self.listing.write_output_to_file(self.dirListSaveDir, self.prefix, self.output)
       self.emit(SIGNAL('finished%s(QString)' % self.checkType), 'done')

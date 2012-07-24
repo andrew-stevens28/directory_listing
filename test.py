@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import sys
+import sys, os
 from PySide.QtUiTools import *
 
 #from PyQt4.QtCore import *
@@ -77,12 +77,13 @@ class MainWindow(QWidget):
     self.myWidget.findChild(QPushButton,'dirListingDirCheckFileSavePushButton').clicked.connect(self.selectDirListingDirCheckFileSaveDirectory)
     self.myWidget.findChild(QCheckBox,'addPrefixDirCheckCheckBox').stateChanged.connect(self.setPrefixDirCheckLineEdit)
     self.myWidget.findChild(QPushButton,'createDirCheckPushButton').clicked.connect(self.createDirectoryListingDirCheck)
+    self.myWidget.findChild(QPushButton,'clearDirCheckPushButton').clicked.connect(self.clearDirCheckOutputTextEdit)
+    self.myWidget.findChild(QPushButton,'cancelDirCheckPushButton').clicked.connect(self.cancelDirCheckDirectoryListing)
     self.myWidget.findChild(QProgressBar,'dirListingDirCheckProgressBar').valueChanged.connect(self.setProgressBarDirCheck)
     self.myWidget.findChild(QProgressBar,'dirListingDirCheckProgressBar').valueChanged.connect(self.updateProgressBarDirCheck)
     self.myWidget.findChild(QProgressBar,'dirListingDirCheckProgressBar').hide()
     self.myWidget.findChild(QLabel,'dirListingDirCheckProgressLabel').hide()
     self.myWidget.findChild(QLabel,'dirListingDirCheckProgressTypeLabel').hide()
-    self.myWidget.findChild(QPushButton,'clearDirCheckPushButton').clicked.connect(self.clearDirCheckOutputTextEdit)
     if self.myWidget.findChild(QPushButton,'cancelDirCheckPushButton').isEnabled():
       self.myWidget.findChild(QPushButton,'cancelDirCheckPushButton').setEnabled(False)
 
@@ -91,14 +92,19 @@ class MainWindow(QWidget):
     self.connect(self.workerThread, SIGNAL('displayOutput(QString)'), self.workerThreadPrintOutput)
     self.connect(self.workerThread, SIGNAL('finished(QString)'), self.workerThreadFinished)
     self.connect(self.workerThread, SIGNAL('setProgressBar(int)'), self.setProgressBar)
+    self.connect(self.workerThread, SIGNAL('updateProgressBar(int)'), self.updateProgressBar)
+    #self.connect(self.workerThread, SIGNAL('setProgressBar(int)'), self.myWidget.findChild(QProgressBar,'dirListingProgressBar').setMaximum)
+    #self.connect(self.workerThread, SIGNAL('updateProgressBar(int)'), self.myWidget.findChild(QProgressBar,'dirListingProgressBar').setValue)
 
     ##handlers for thread to display output to the dirCheck tab
     self.connect(self.workerThread, SIGNAL('displayDirCheckOutput(QString)'), self.workerThreadPrintDirCheckOutput)
     self.connect(self.workerThread, SIGNAL('finishedDirCheck(QString)'), self.workerThreadDirCheckFinished)
     self.connect(self.workerThread, SIGNAL('setProgressBarDirCheck(int)'), self.setProgressBarDirCheck)
+    self.connect(self.workerThread, SIGNAL('updateProgressBarDirCheck(int)'), self.updateProgressBarDirCheck)
     #self.sig_finished.sig.emit()
     #self.workerThread.signal.sig.connect(self.workerThreadPrintOutput)
 
+  # open a directory dialog box for the source directories of the Directory Listing tab
   def selectSourceDirectory(self):
     self.myWidget.findChild(QLineEdit,'sourceLineEdit').setText(QFileDialog.getExistingDirectory())
 
@@ -130,7 +136,15 @@ class MainWindow(QWidget):
     else:
       self.myWidget.findChild(QLineEdit,'prefixDirCheckLineEdit').setEnabled(True)
 
+  # method to cancel the directory listing
   def cancelDirectoryListing(self):
+    if self.workerThread.isRunning():
+      self.workerThread.stop()
+    #pass
+
+  # method to cancel the directory listing, directory check and md5 checksum
+  ## this had to be a separate method since there are multiple things we have to stop here
+  def cancelDirCheckDirectoryListing(self):
     if self.workerThread.isRunning():
       self.workerThread.stop()
     #pass
@@ -147,8 +161,28 @@ class MainWindow(QWidget):
     else:
       directory = self.myWidget.findChild(QLineEdit, 'sourceLineEdit').text()
 
+    if not self.myWidget.findChild(QLineEdit,'dirListingFileSaveLineEdit').text() == "":
+      dirListSaveDir = self.myWidget.findChild(QLineEdit,'dirListingFileSaveLineEdit').text()
+
+    if not os.path.isdir(directory):
+      msgBox = QMessageBox()
+      msgBox.setIcon(QMessageBox.Critical)
+      msgBox.setText("The supplied directory where the files were copied from does not exist, please check the directory and try again")
+      msgBox.exec_()
+      return
+    if dirListSaveDir and not os.path.isdir(dirListSaveDir):
+      msgBox = QMessageBox()
+      msgBox.setIcon(QMessageBox.Critical)
+      msgBox.setText("The directory to save the Directory listing does not exist, please check the directory and try again")
+      msgBox.exec_()
+      return
+
     if self.myWidget.findChild(QLineEdit,'prefixLineEdit').isEnabled():
       prefix = self.myWidget.findChild(QLineEdit, 'prefixLineEdit').text()
+
+    if self.myWidget.findChild(QLabel, 'dirListingProgressTypeLabel').isHidden():
+      self.myWidget.findChild(QLabel, 'dirListingProgressTypeLabel').show()
+    self.myWidget.findChild(QLabel, 'dirListingProgressTypeLabel').setText("creating directory listing....")
 
     ## bringing up the progress bar and its label so the user can see it
     if self.myWidget.findChild(QProgressBar,'dirListingProgressBar').isHidden():
@@ -162,8 +196,6 @@ class MainWindow(QWidget):
     self.myWidget.findChild(QProgressBar,'dirListingProgressBar').setValue(1)
     #self.updateProgressBar(1)
 
-    if not self.myWidget.findChild(QLineEdit,'dirListingFileSaveLineEdit').text() == "":
-      dirListSaveDir = self.myWidget.findChild(QLineEdit,'dirListingFileSaveLineEdit').text()
     # get the time before the list directory started
     #start_proc = time()
     #output = list_directories(directory)
@@ -175,10 +207,18 @@ class MainWindow(QWidget):
       self.workerThread.initialize(directory, dirListSaveDir=dirListSaveDir, prefix=prefix)
       #self.workerThread.initialize(directory)
       self.workerThread.start()
-      self.myWidget.findChild(QTextEdit, 'outputTextEdit').append("Directory listing has started, please wait...\n")
+      #self.myWidget.findChild(QTextEdit, 'outputTextEdit').append("Directory listing has started, please wait...\n")
       self.myWidget.findChild(QPushButton,'createPushButton').setEnabled(False)
       if not self.myWidget.findChild(QPushButton,'cancelPushButton').isEnabled():
         self.myWidget.findChild(QPushButton,'cancelPushButton').setEnabled(True)
+    else:
+      self.clearOutputTextEdit()
+      msgBox = QMessageBox()
+      msgBox.setIcon(QMessageBox.Critical)
+      msgBox.setText("There is a Directory Listing already Running! Please wait")
+      msgBox.exec_()
+      return
+
 
     # and we get the end time of the process
     #end_proc = time()
@@ -195,7 +235,9 @@ class MainWindow(QWidget):
   # create directory listing for the Directory listing and check tab
   def createDirectoryListingDirCheck(self):
     dirListSaveDir = ""
+    destDirectory = ""
     prefix = ""
+    checksum = False
     if self.myWidget.findChild(QLineEdit, 'sourceDirCheckLineEdit').text() == "":
       msgBox = QMessageBox()
       msgBox.setIcon(QMessageBox.Critical)
@@ -207,11 +249,35 @@ class MainWindow(QWidget):
     if not self.myWidget.findChild(QLineEdit,'dirListingDirCheckFileSaveLineEdit').text() == "":
       dirListSaveDir = self.myWidget.findChild(QLineEdit,'dirListingDirCheckFileSaveLineEdit').text()
 
+    # getting the destination directory if it exists
+    if not self.myWidget.findChild(QLineEdit,'destDirCheckLineEdit').text() == "":
+      destDirectory = self.myWidget.findChild(QLineEdit,'destDirCheckLineEdit').text()
+
+    if not os.path.isdir(directory):
+      msgBox = QMessageBox()
+      msgBox.setIcon(QMessageBox.Critical)
+      msgBox.setText("The supplied directory where the files were copied from does not exist, please check the directory and try again")
+      msgBox.exec_()
+      return
+    if destDirectory and not os.path.isdir(destDirectory):
+      msgBox = QMessageBox()
+      msgBox.setIcon(QMessageBox.Critical)
+      msgBox.setText("The supplied directory where the files were copied to does not exist, please check the directory and try again")
+      msgBox.exec_()
+      return
+    if dirListSaveDir and not os.path.isdir(dirListSaveDir):
+      msgBox = QMessageBox()
+      msgBox.setIcon(QMessageBox.Critical)
+      msgBox.setText("The directory to save the Directory listing does not exist, please check the directory and try again")
+      msgBox.exec_()
+      return
     ## getting the prefix for the directory listing file
     if self.myWidget.findChild(QLineEdit,'prefixDirCheckLineEdit').isEnabled():
       prefix = self.myWidget.findChild(QLineEdit, 'prefixDirCheckLineEdit').text()
 
-    self.myWidget.findChild(QTextEdit, 'outputDirCheckTextEdit').append("creating directory listing....")
+    if self.myWidget.findChild(QLabel, 'dirListingDirCheckProgressTypeLabel').isHidden():
+      self.myWidget.findChild(QLabel, 'dirListingDirCheckProgressTypeLabel').show()
+    self.myWidget.findChild(QLabel, 'dirListingDirCheckProgressTypeLabel').setText("creating directory listing....")
 
     ## bringing up the progress bar and its label so the user can see it
     if self.myWidget.findChild(QProgressBar,'dirListingDirCheckProgressBar').isHidden():
@@ -220,27 +286,33 @@ class MainWindow(QWidget):
       self.myWidget.findChild(QLabel,'dirListingDirCheckProgressLabel').show()
 
     self.myWidget.findChild(QLabel,'dirListingDirCheckProgressLabel').setText("Progress:")
-    #self.myWidget.findChild(QProgressBar,'dirListingProgressBar').reset()
     self.myWidget.findChild(QProgressBar,'dirListingDirCheckProgressBar').setRange(0,100)
     self.myWidget.findChild(QProgressBar,'dirListingDirCheckProgressBar').setValue(1)
-    #self.updateProgressBar(1)
 
     if not self.myWidget.findChild(QLineEdit,'dirListingDirCheckFileSaveLineEdit').text() == "":
       dirListSaveDir = self.myWidget.findChild(QLineEdit,'dirListingDirCheckFileSaveLineEdit').text()
     # get the time before the list directory started
     #start_proc = time()
     #output = list_directories(directory)
+    if self.myWidget.findChild(QCheckBox,'checkSumDirCheckCheckBox').isChecked():
+      checksum = True
 
     ## setting up thread stuff here
     if not self.workerThread.isRunning():
       self.workerThread.stopped = False
-      self.workerThread.initialize(directory, 'DirCheck', dirListSaveDir, prefix)
+      self.workerThread.initialize(directory, 'DirCheck', destDirectory, dirListSaveDir, prefix, checksum)
       self.workerThread.start()
-      self.myWidget.findChild(QTextEdit, 'outputDirCheckTextEdit').append("Directory listing has started, please wait...\n")
+      #self.myWidget.findChild(QTextEdit, 'outputDirCheckTextEdit').append("Directory listing has started, please wait...\n")
       self.myWidget.findChild(QPushButton,'createDirCheckPushButton').setEnabled(False)
       if not self.myWidget.findChild(QPushButton,'cancelDirCheckPushButton').isEnabled():
         self.myWidget.findChild(QPushButton,'cancelDirCheckPushButton').setEnabled(True)
-
+    else:
+      self.clearDirCheckOutputTextEdit()
+      msgBox = QMessageBox()
+      msgBox.setIcon(QMessageBox.Critical)
+      msgBox.setText("There is a Directory Listing already Running! Please wait")
+      msgBox.exec_()
+      return
 
   ## method to set the maximum value of the progress bar
   def setProgressBar(self, maximum):
@@ -256,14 +328,17 @@ class MainWindow(QWidget):
 
   ## method to update the progress bar to the job it is at
   def updateProgressBar(self, value):
-    self.myWidget.findChild(QProgressBar,'dirListingProgressBar').setValue(value)
+    currentVal = self.myWidget.findChild(QProgressBar, 'dirListingProgressBar').value()
+    print "current value is: %d" % currentVal
+    self.myWidget.findChild(QProgressBar,'dirListingProgressBar').setValue(currentVal + value)
 
   ## method to update progress bar label
   def updateProgressBarLabel(self, value):
     self.myWidget.findChild(QProgressBar,'dirListingProgressBar').setValue(value)
 
   def updateProgressBarDirCheck(self, value):
-    self.myWidget.findChild(QProgressBar,'dirListingDirCheckProgressBar').setValue(value)
+    currentVal = self.myWidget.findChild(QProgressBar, 'dirListingDirCheckProgressBar').value()
+    self.myWidget.findChild(QProgressBar,'dirListingDirCheckProgressBar').setValue(currentVal + value)
 
   def workerThreadPrintOutput(self, text):
     self.myWidget.findChild(QTextEdit, 'outputTextEdit').append(text)
@@ -274,11 +349,13 @@ class MainWindow(QWidget):
   #def workerThreadFinished(self, data):
   def workerThreadFinished(self, text):
     if text == 'done':
-      self.myWidget.findChild(QTextEdit, 'outputTextEdit').append("Finished Directory listing!\n")
+      #self.myWidget.findChild(QTextEdit, 'outputTextEdit').append("Finished Directory listing!\n")
+      self.myWidget.findChild(QLabel, 'dirListingProgressTypeLabel').setText("Finished Directory listing!")
       self.myWidget.findChild(QProgressBar,'dirListingProgressBar').setValue(self.progMax)
       self.myWidget.findChild(QLabel,'dirListingProgressLabel').setText("Complete!!")
     else:
-      self.myWidget.findChild(QTextEdit, 'outputTextEdit').append("Directory Listing cancelled!!")
+      #self.myWidget.findChild(QTextEdit, 'outputTextEdit').append("Directory Listing cancelled!!")
+      self.myWidget.findChild(QLabel, 'dirListingProgressTypeLabel').setText("Directory Listing cancelled!!")
       self.myWidget.findChild(QProgressBar,'dirListingProgressBar').setValue(self.progMax)
       self.myWidget.findChild(QLabel,'dirListingProgressLabel').setText("Cancelled!!")
     print "finished appending data"
@@ -298,11 +375,13 @@ class MainWindow(QWidget):
 
   def workerThreadDirCheckFinished(self, text):
     if text == 'done':
-      self.myWidget.findChild(QTextEdit, 'outputDirCheckTextEdit').append("Finished Directory listing!\n")
+      #self.myWidget.findChild(QTextEdit, 'outputDirCheckTextEdit').append("Finished Directory listing!\n")
+      self.myWidget.findChild(QLabel, 'dirListingDirCheckProgressTypeLabel').setText("Finished Directory listing!")
       self.myWidget.findChild(QProgressBar,'dirListingDirCheckProgressBar').setValue(self.progMax)
       self.myWidget.findChild(QLabel,'dirListingDirCheckProgressLabel').setText("Complete!!")
     else:
-      self.myWidget.findChild(QTextEdit, 'outputDirCheckTextEdit').append("Directory Listing cancelled!!")
+      #self.myWidget.findChild(QTextEdit, 'outputDirCheckTextEdit').append("Directory Listing cancelled!!")
+      self.myWidget.findChild(QLabel, 'dirListingDirCheckProgressTypeLabel').setText("Directory Listing cancelled!!")
       self.myWidget.findChild(QProgressBar,'dirListingDirCheckProgressBar').setValue(self.progMax)
       self.myWidget.findChild(QLabel,'dirListingDirCheckProgressLabel').setText("Cancelled!!")
     print "finished appending data"
@@ -322,6 +401,9 @@ class MainWindow(QWidget):
     if not self.myWidget.findChild(QLabel,'dirListingProgressLabel').isHidden():
       self.myWidget.findChild(QLabel,'dirListingProgressLabel').hide()
       self.myWidget.findChild(QLabel,'dirListingProgressLabel').setText("Progress:")
+    if not self.myWidget.findChild(QLabel,'dirListingProgressTypeLabel').isHidden():
+      self.myWidget.findChild(QLabel, 'dirListingProgressTypeLabel').setText("")
+      self.myWidget.findChild(QLabel, 'dirListingProgressTypeLabel').hide()
     self.myWidget.findChild(QProgressBar,'dirListingProgressBar').setValue(1)
 
   def clearDirCheckOutputTextEdit(self):
@@ -333,6 +415,9 @@ class MainWindow(QWidget):
     if not self.myWidget.findChild(QLabel,'dirListingDirCheckProgressLabel').isHidden():
       self.myWidget.findChild(QLabel,'dirListingDirCheckProgressLabel').hide()
       self.myWidget.findChild(QLabel,'dirListingDirCheckProgressLabel').setText("Progress:")
+    if not self.myWidget.findChild(QLabel,'dirListingDirCheckProgressTypeLabel').isHidden():
+      self.myWidget.findChild(QLabel, 'dirListingDirCheckProgressTypeLabel').setText("")
+      self.myWidget.findChild(QLabel, 'dirListingDirCheckProgressTypeLabel').hide()
     self.myWidget.findChild(QProgressBar,'dirListingDirCheckProgressBar').setValue(1)
 
   # clear the text fromt the texteditor in the 'Directory Listing and Check' tab

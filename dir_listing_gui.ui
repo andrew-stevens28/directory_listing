@@ -44,7 +44,7 @@
     <bool>true</bool>
    </property>
    <property name="currentIndex">
-    <number>0</number>
+    <number>1</number>
    </property>
    <widget class="QWidget" name="dirOnlyTab">
     <property name="focusPolicy">
@@ -272,7 +272,7 @@
      <property name="geometry">
       <rect>
        <x>30</x>
-       <y>240</y>
+       <y>270</y>
        <width>841</width>
        <height>361</height>
       </rect>
@@ -339,7 +339,7 @@
      <property name="geometry">
       <rect>
        <x>340</x>
-       <y>610</y>
+       <y>230</y>
        <width>231</width>
        <height>20</height>
       </rect>
@@ -647,7 +647,7 @@
      <property name="geometry">
       <rect>
        <x>30</x>
-       <y>240</y>
+       <y>270</y>
        <width>841</width>
        <height>361</height>
       </rect>
@@ -721,7 +721,7 @@
      <property name="geometry">
       <rect>
        <x>340</x>
-       <y>610</y>
+       <y>230</y>
        <width>231</width>
        <height>20</height>
       </rect>
