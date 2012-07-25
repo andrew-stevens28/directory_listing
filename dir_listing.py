@@ -403,6 +403,7 @@ class DirectoryListing:
     search_ds_store = re.compile(r".DS_Store")
     search_mac2 = re.compile(r"^.fs")    #regular expression to find unwanted .fseventsd files
     resolution = re.compile(r"[0-9][0-9][0-9][0-9]x[0-9][0-9][0-9][0-9]")
+    system = sys.platform
     none_detected = 0
     no_files = 0
     no_files_in_dir = 0
@@ -463,6 +464,7 @@ class DirectoryListing:
     dir_detect = -1
     src_detect = -1
     count = -1      ## a count to check the number of files that are different
+    system = sys.platform
     
     (dir_dict, dir_detect, dir_nothing_found, dir_output) = self.get_files(dest)  ##destination dictionary of files grabs only directories that have files in them
     #print src_dict

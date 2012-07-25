@@ -101,6 +101,7 @@ class MainWindow(QWidget):
     self.connect(self.workerThread, SIGNAL('finishedDirCheck(QString)'), self.workerThreadDirCheckFinished)
     self.connect(self.workerThread, SIGNAL('setProgressBarDirCheck(int)'), self.setProgressBarDirCheck)
     self.connect(self.workerThread, SIGNAL('updateProgressBarDirCheck(int)'), self.updateProgressBarDirCheck)
+    self.connect(self.workerThread, SIGNAL('updateDirCheckProgress(QString)'), self.updateDirListingDirCheckProgressTypeLabel)
     #self.sig_finished.sig.emit()
     #self.workerThread.signal.sig.connect(self.workerThreadPrintOutput)
 
@@ -340,6 +341,10 @@ class MainWindow(QWidget):
     currentVal = self.myWidget.findChild(QProgressBar, 'dirListingDirCheckProgressBar').value()
     self.myWidget.findChild(QProgressBar,'dirListingDirCheckProgressBar').setValue(currentVal + value)
 
+  ## method to update progress type label of directory check
+  def updateDirListingDirCheckProgressTypeLabel(self, value):
+    self.myWidget.findChild(QLabel,'dirListingDirCheckProgressTypeLabel').setText(value)
+
   def workerThreadPrintOutput(self, text):
     self.myWidget.findChild(QTextEdit, 'outputTextEdit').append(text)
 
@@ -358,7 +363,7 @@ class MainWindow(QWidget):
       self.myWidget.findChild(QLabel, 'dirListingProgressTypeLabel').setText("Directory Listing cancelled!!")
       self.myWidget.findChild(QProgressBar,'dirListingProgressBar').setValue(self.progMax)
       self.myWidget.findChild(QLabel,'dirListingProgressLabel').setText("Cancelled!!")
-    print "finished appending data"
+    #print "finished appending data"
     #if not data == []:
     #  for out in data:
     #    self.myWidget.findChild(QTextEdit, 'outputTextEdit').append(out)

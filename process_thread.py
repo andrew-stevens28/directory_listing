@@ -57,8 +57,11 @@ class ProcessWorker(QThread):
         self.emit(SIGNAL("display%sOutput(QString)" % self.checkType), out)
       #print self.dirListSaveDir, self.prefix
       if not self.destPath == '':
+        self.emit(SIGNAL("updateDirCheckProgress(QString)"), "Listing finished, Performing Check...")
         print "check directories!!!!"
         #self.listing.check_dirs(self.path, self.destPath)
+        (count, dir_detect, src_detect, output) = self.listing.compare_dir(self.path, self.destPath)
+        print count, dir_detect, src_detect, output
       if not self.dirListSaveDir == '' and not self.output == []:
         #print "writing file..."
         self.listing.write_output_to_file(self.dirListSaveDir, self.prefix, self.output)
