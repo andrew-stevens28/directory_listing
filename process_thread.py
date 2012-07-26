@@ -26,6 +26,12 @@ class ProcessWorker(QThread):
     self.dirListSaveDir = ''
     self.prefix = ''
     self.checksum = False
+    self.outputError = """
+       =========================================================
+         Error: 
+               %s
+       =========================================================
+    """
     #self.signal = OutputSignal()
     #self.sig_finished = FinishedSignal()
     self.listing = DirectoryListing()
@@ -58,10 +64,22 @@ class ProcessWorker(QThread):
       #print self.dirListSaveDir, self.prefix
       if not self.destPath == '':
         self.emit(SIGNAL("updateDirCheckProgress(QString)"), "Listing finished, Performing Check...")
-        print "check directories!!!!"
-        #self.listing.check_dirs(self.path, self.destPath)
-        (count, dir_detect, src_detect, output) = self.listing.compare_dir(self.path, self.destPath)
-        print count, dir_detect, src_detect, output
+        srcDirectory = set(os.listdir(self.path))
+        numSrc = len(srcDirectory)
+        destDirectory = set(os.listdir(self.destPath))
+        if len(srcDirectory - destDirectory) < numSrc:
+          print "check directories!!!!"
+          #self.listing.check_dirs(self.path, self.destPath)
+          output = self.listing.check_dirs(self.path, self.destPath, self.path.split("/")[-1], self.destPath.split("/")[-1])
+          print output
+        else:
+          msg = """
+               Either the destination directory is empty or the destination directory does
+               not have the same files and/or folders as the src directory
+               please check these are the correct directories and the copy has
+               completed successfully
+          """
+          self.emit(SIGNAL("display%sOutput(QString)" % self.checkType), self.outputError % msg)
       if not self.dirListSaveDir == '' and not self.output == []:
         #print "writing file..."
         self.listing.write_output_to_file(self.dirListSaveDir, self.prefix, self.output)
